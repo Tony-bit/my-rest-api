@@ -56,6 +56,10 @@ public class SnapshotController {
                 .closePrice(s.getClosePrice())
                 .highPrice(s.getHighPrice())
                 .lowPrice(s.getLowPrice())
+                .planCashBalance(s.getPlanCashBalance())
+                .planMarketValue(s.getPlanMarketValue())
+                .actualCashBalance(s.getActualCashBalance())
+                .actualMarketValue(s.getActualMarketValue())
                 .createdAt(s.getCreatedAt())
                 .build();
     }
