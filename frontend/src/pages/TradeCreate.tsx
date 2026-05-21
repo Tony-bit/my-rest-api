@@ -29,7 +29,7 @@ export default function TradeCreate() {
         ...form,
         price: parseFloat(form.price),
         quantity: parseInt(form.quantity),
-      } as never)
+      })
       navigate('/actual-trades')
     } catch (err) {
       setError((err as Error).message)

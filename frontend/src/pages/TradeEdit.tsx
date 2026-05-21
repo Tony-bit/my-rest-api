@@ -48,7 +48,7 @@ export default function TradeEdit() {
           ...form,
           price: parseFloat(form.price),
           quantity: parseInt(form.quantity),
-        } as never,
+        },
       })
       navigate('/actual-trades')
     } catch (err) {
