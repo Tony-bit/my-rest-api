@@ -12,6 +12,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
@@ -22,18 +23,22 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class PlanService {
 
+    private static final int TRIGGER_DATE_VALIDITY_DAYS = 90;
     private static final Set<Integer> VALID_MA_PERIODS = Set.of(5, 10, 20, 60, 120, 250);
 
     private final PlanRepository planRepository;
 
     @Transactional
     public PlanDTO.Response create(PlanDTO.CreateRequest request) {
+        validateTriggerDate(request.getTriggerDate());
+
         Plan plan = Plan.builder()
                 .name(request.getName())
                 .stockCode(request.getStockCode())
                 .stockName(request.getStockName())
                 .cycle(request.getCycle())
                 .validUntil(request.getValidUntil())
+                .triggerDate(request.getTriggerDate() != null ? request.getTriggerDate() : LocalDate.now())
                 .executionQuantity(request.getExecutionQuantity())
                 .build();
 
@@ -122,6 +127,14 @@ public class PlanService {
         }
     }
 
+    private void validateTriggerDate(LocalDate triggerDate) {
+        if (triggerDate == null) return;
+        LocalDate earliest = LocalDate.now().minusDays(TRIGGER_DATE_VALIDITY_DAYS);
+        if (triggerDate.isBefore(earliest)) {
+            throw new BusinessException("triggerDate 必须在最近 " + TRIGGER_DATE_VALIDITY_DAYS + " 天内", 400);
+        }
+    }
+
     private PlanCondition mapToCondition(ConditionDTO.CreateRequest request) {
         return PlanCondition.builder()
                 .conditionType(request.getConditionType())
@@ -141,6 +154,7 @@ public class PlanService {
                 .status(plan.getStatus())
                 .isLocked(plan.getIsLocked())
                 .validUntil(plan.getValidUntil())
+                .triggerDate(plan.getTriggerDate())
                 .executionQuantity(plan.getExecutionQuantity())
                 .conditions(plan.getConditions().stream()
                         .map(ConditionDTO.Response::toResponse)

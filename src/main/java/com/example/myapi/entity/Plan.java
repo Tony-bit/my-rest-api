@@ -49,6 +49,9 @@ public class Plan {
     @Column(name = "valid_until")
     private LocalDate validUntil;
 
+    @Column(name = "trigger_date")
+    private LocalDate triggerDate;
+
     @Column(name = "execution_quantity", precision = 10, scale = 2)
     @Builder.Default
     private java.math.BigDecimal executionQuantity = new java.math.BigDecimal("100");

@@ -37,6 +37,7 @@ public class TestFixtures {
         private PlanStatus status = PlanStatus.PENDING;
         private Boolean isLocked = false;
         private LocalDate validUntil;
+        private LocalDate triggerDate;
         private BigDecimal executionQuantity = new BigDecimal("100");
         private LocalDateTime createdAt = LocalDateTime.of(2026, 5, 20, 10, 0);
         private LocalDateTime updatedAt = LocalDateTime.of(2026, 5, 20, 10, 0);
@@ -49,6 +50,7 @@ public class TestFixtures {
         public PlanBuilder status(PlanStatus status) { this.status = status; return this; }
         public PlanBuilder isLocked(Boolean isLocked) { this.isLocked = isLocked; return this; }
         public PlanBuilder validUntil(LocalDate validUntil) { this.validUntil = validUntil; return this; }
+        public PlanBuilder triggerDate(LocalDate triggerDate) { this.triggerDate = triggerDate; return this; }
         public PlanBuilder executionQuantity(BigDecimal executionQuantity) { this.executionQuantity = executionQuantity; return this; }
         public PlanBuilder createdAt(LocalDateTime createdAt) { this.createdAt = createdAt; return this; }
 
@@ -61,6 +63,7 @@ public class TestFixtures {
                     .status(status)
                     .isLocked(isLocked)
                     .validUntil(validUntil)
+                    .triggerDate(triggerDate)
                     .executionQuantity(executionQuantity)
                     .build();
             setField(plan, "id", id);

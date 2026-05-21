@@ -38,6 +38,8 @@ public class PlanDTO {
 
         private LocalDate validUntil;
 
+        private LocalDate triggerDate;
+
         private BigDecimal executionQuantity;
 
         @Valid
@@ -57,6 +59,7 @@ public class PlanDTO {
 
         private PlanCycle cycle;
         private LocalDate validUntil;
+        private LocalDate triggerDate;
         private BigDecimal executionQuantity;
     }
 
@@ -73,6 +76,7 @@ public class PlanDTO {
         private PlanStatus status;
         private Boolean isLocked;
         private LocalDate validUntil;
+        private LocalDate triggerDate;
         private BigDecimal executionQuantity;
         private List<ConditionDTO.Response> conditions;
         private java.time.LocalDateTime createdAt;

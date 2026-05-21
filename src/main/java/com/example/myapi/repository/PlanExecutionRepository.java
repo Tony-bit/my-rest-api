@@ -11,4 +11,6 @@ public interface PlanExecutionRepository extends JpaRepository<PlanExecution, Lo
     List<PlanExecution> findByPlanId(Long planId);
 
     List<PlanExecution> findByPlanIdOrderByTradeDateAsc(Long planId);
+
+    boolean existsByPlanIdAndExecutedTrue(Long planId);
 }
