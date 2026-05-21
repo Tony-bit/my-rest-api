@@ -1,0 +1,5 @@
+@import "tailwindcss";
+
+.field-input {
+  @apply w-full px-3 py-2 text-sm bg-gray-950 border border-gray-700 rounded text-gray-200 focus:outline-none focus:border-blue-500;
+}
