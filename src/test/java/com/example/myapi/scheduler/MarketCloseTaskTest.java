@@ -31,16 +31,27 @@ class MarketCloseTaskTest {
     @Mock private DailySnapshotRepository snapshotRepository;
     @Mock private ActualTradeRepository actualTradeRepository;
     @Mock private TushareService tushareService;
+    @Mock private SystemConfigService systemConfigService;
+    @Mock private SystemConfig systemConfig;
+    @Mock private PlanAccount planAccount;
+    @Mock private ActualAccount actualAccount;
 
     private PlanExecutionService executionService;
     private MarketCloseTask task;
 
     @BeforeEach
     void setUp() {
-        executionService = new PlanExecutionService(executionRepository, planRepository);
+        when(systemConfig.getBaselineCapital()).thenReturn(new BigDecimal("500000"));
+        when(systemConfigService.getSystemConfig()).thenReturn(systemConfig);
+        when(systemConfigService.getPlanAccount()).thenReturn(planAccount);
+        when(systemConfigService.getActualAccount()).thenReturn(actualAccount);
+        when(planAccount.getCashBalance()).thenReturn(new BigDecimal("500000"));
+        when(actualAccount.getCashBalance()).thenReturn(new BigDecimal("500000"));
+
+        executionService = new PlanExecutionService(executionRepository, planRepository, systemConfigService);
         task = new MarketCloseTask(
                 planRepository, executionRepository, snapshotRepository,
-                actualTradeRepository, tushareService, executionService);
+                actualTradeRepository, tushareService, executionService, systemConfigService);
     }
 
     // 7.1 onMarketClose
@@ -296,11 +307,13 @@ class MarketCloseTaskTest {
 
         task.generatePlanSnapshots(LocalDate.now());
 
-        verify(snapshotRepository).save(argThat(s -> s.getPlanReturnPercent().compareTo(BigDecimal.ZERO) == 0));
+        verify(snapshotRepository).save(argThat(s ->
+                BigDecimal.ZERO.compareTo(s.getPlanReturnPercent()) == 0 &&
+                BigDecimal.ZERO.compareTo(s.getPlanCashBalance().subtract(new BigDecimal("500000"))) == 0));
     }
 
     @Test
-    void generatePlanSnapshots_holding_calculatesReturn() {
+    void generatePlanSnapshots_holding_calculatesReturnUsingBaselineCapital() {
         Plan plan = newPlan(PlanStatus.HOLDING, PlanCycle.DAILY, LocalDateTime.now());
         PlanExecution buy = exec(TradeDirection.BUY, new BigDecimal("10.00"), LocalDate.of(2026, 5, 1), plan);
         KLineData kd = kLine("11.00");
@@ -313,7 +326,11 @@ class MarketCloseTaskTest {
 
         task.generatePlanSnapshots(LocalDate.now());
 
-        verify(snapshotRepository).save(argThat(s -> s.getPlanReturnPercent().compareTo(new BigDecimal("10.0000")) == 0));
+        verify(snapshotRepository).save(argThat(s ->
+                BigDecimal.ZERO.compareTo(s.getPlanCashBalance().subtract(new BigDecimal("500000"))) == 0 &&
+                BigDecimal.ZERO.compareTo(s.getPlanMarketValue().subtract(new BigDecimal("1100"))) == 0 &&
+                BigDecimal.ZERO.compareTo(s.getPlanTotalValue().subtract(new BigDecimal("501100"))) == 0 &&
+                BigDecimal.ZERO.compareTo(s.getPlanReturnPercent().subtract(new BigDecimal("0.2200"))) == 0));
     }
 
     @Test
@@ -369,6 +386,7 @@ class MarketCloseTaskTest {
     @Test
     void generateActualTradeSnapshots_generatesOnePerTrade() {
         when(actualTradeRepository.findAll()).thenReturn(listOf(mkTrade(1L), mkTrade(2L), mkTrade(3L)));
+        when(actualTradeRepository.findUnmatchedBuys(any())).thenReturn(List.of());
         when(tushareService.getDailyKLine(any(), any(), anyBoolean())).thenReturn(Optional.of(kLine("11.00")));
 
         task.generateActualTradeSnapshots(LocalDate.now());
@@ -387,6 +405,7 @@ class MarketCloseTaskTest {
         setField(t, "id", 1L);
 
         when(actualTradeRepository.findAll()).thenReturn(listOf(t));
+        when(actualTradeRepository.findUnmatchedBuys(any())).thenReturn(List.of(t));
         when(tushareService.getDailyKLine(any(), any(), anyBoolean())).thenReturn(Optional.of(kLine("11.00")));
 
         task.generateActualTradeSnapshots(LocalDate.now());
@@ -401,6 +420,7 @@ class MarketCloseTaskTest {
     void generateActualTradeSnapshots_noKLine_skips() {
         ActualTrade t = mkTrade(1L);
         when(actualTradeRepository.findAll()).thenReturn(listOf(t));
+        when(actualTradeRepository.findUnmatchedBuys(any())).thenReturn(List.of());
         when(tushareService.getDailyKLine(any(), any(), anyBoolean())).thenReturn(Optional.empty());
 
         task.generateActualTradeSnapshots(LocalDate.now());

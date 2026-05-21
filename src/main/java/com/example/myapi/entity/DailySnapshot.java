@@ -78,11 +78,17 @@ public class DailySnapshot {
     @Column(name = "plan_market_value", precision = 14, scale = 2)
     private BigDecimal planMarketValue;
 
+    @Column(name = "plan_total_value", precision = 14, scale = 2)
+    private BigDecimal planTotalValue;
+
     @Column(name = "actual_cash_balance", precision = 14, scale = 2)
     private BigDecimal actualCashBalance;
 
     @Column(name = "actual_market_value", precision = 14, scale = 2)
     private BigDecimal actualMarketValue;
+
+    @Column(name = "actual_total_value", precision = 14, scale = 2)
+    private BigDecimal actualTotalValue;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;

@@ -3,6 +3,7 @@ package com.example.myapi.scheduler;
 import com.example.myapi.entity.*;
 import com.example.myapi.repository.*;
 import com.example.myapi.service.PlanExecutionService;
+import com.example.myapi.service.SystemConfigService;
 import com.example.myapi.service.TushareService;
 import com.example.myapi.service.TushareService.KLineData;
 import lombok.RequiredArgsConstructor;
@@ -13,12 +14,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
-import java.time.temporal.TemporalAdjusters;
-import java.util.List;
 
 @Slf4j
 @Component
@@ -31,6 +29,7 @@ public class MarketCloseTask {
     private final ActualTradeRepository actualTradeRepository;
     private final TushareService tushareService;
     private final PlanExecutionService executionService;
+    private final SystemConfigService systemConfigService;
 
     @Scheduled(cron = "0 0 17 * * MON-FRI", zone = "Asia/Shanghai")
     @Transactional
@@ -118,31 +117,38 @@ public class MarketCloseTask {
     }
 
     void generatePlanSnapshots(LocalDate today) {
+        BigDecimal baselineCapital = systemConfigService.getSystemConfig().getBaselineCapital();
+        BigDecimal planCashBalance = systemConfigService.getPlanAccount().getCashBalance();
+
         List<Plan> activePlans = planRepository.findByStatusIn(List.of(PlanStatus.PENDING, PlanStatus.HOLDING));
         for (Plan plan : activePlans) {
             Optional<KLineData> kDataOpt = tushareService.getDailyKLine(plan.getStockCode(), today, true);
             if (kDataOpt.isEmpty()) continue;
             KLineData kData = kDataOpt.get();
 
-            BigDecimal planReturn = BigDecimal.ZERO;
-            BigDecimal planReturnPercent = BigDecimal.ZERO;
+            BigDecimal planReturnPct = BigDecimal.ZERO;
 
             if (plan.getStatus() == PlanStatus.HOLDING) {
                 List<PlanExecution> buys = executionRepository.findByPlanId(plan.getId()).stream()
                         .filter(e -> e.getDirection() == TradeDirection.BUY)
                         .toList();
                 if (!buys.isEmpty()) {
-                    BigDecimal avgCost = buys.stream()
+                    BigDecimal totalCost = buys.stream()
                             .map(PlanExecution::getTriggerPrice)
-                            .reduce(BigDecimal.ZERO, BigDecimal::add)
-                            .divide(BigDecimal.valueOf(buys.size()), 4, RoundingMode.HALF_UP);
-                    planReturn = kData.close.subtract(avgCost).setScale(4, RoundingMode.HALF_UP);
-                    planReturnPercent = kData.close.subtract(avgCost)
-                            .divide(avgCost, 4, RoundingMode.HALF_UP)
+                            .reduce(BigDecimal.ZERO, BigDecimal::add);
+                    BigDecimal quantity = BigDecimal.valueOf(buys.size())
+                            .multiply(plan.getExecutionQuantity());
+                    BigDecimal marketValue = kData.close.multiply(quantity);
+                    BigDecimal totalValue = planCashBalance.add(marketValue);
+                    planReturnPct = totalValue.subtract(baselineCapital)
+                            .divide(baselineCapital, 6, RoundingMode.HALF_UP)
                             .multiply(BigDecimal.valueOf(100))
                             .setScale(4, RoundingMode.HALF_UP);
                 }
             }
+
+            BigDecimal totalHoldingValue = planCashBalance.add(
+                    kData.close.multiply(plan.getExecutionQuantity()));
 
             boolean hasActualTrade = !actualTradeRepository.findByStockCode(plan.getStockCode()).isEmpty();
 
@@ -152,12 +158,14 @@ public class MarketCloseTask {
                     .stockCode(plan.getStockCode())
                     .stockName(plan.getStockName())
                     .planStatus(plan.getStatus())
-                    .planReturn(planReturn)
-                    .planReturnPercent(planReturnPercent)
                     .hasActualTrade(hasActualTrade)
                     .closePrice(kData.close)
                     .highPrice(kData.high)
                     .lowPrice(kData.low)
+                    .planCashBalance(planCashBalance)
+                    .planMarketValue(kData.close.multiply(plan.getExecutionQuantity()))
+                    .planTotalValue(totalHoldingValue)
+                    .planReturnPercent(planReturnPct)
                     .build();
 
             snapshotRepository.save(snapshot);
@@ -166,11 +174,28 @@ public class MarketCloseTask {
     }
 
     void generateActualTradeSnapshots(LocalDate today) {
-        List<ActualTrade> trades = actualTradeRepository.findAll();
-        for (ActualTrade trade : trades) {
+        BigDecimal baselineCapital = systemConfigService.getSystemConfig().getBaselineCapital();
+        BigDecimal actualCashBalance = systemConfigService.getActualAccount().getCashBalance();
+
+        List<ActualTrade> allTrades = actualTradeRepository.findAll();
+
+        for (ActualTrade trade : allTrades) {
             Optional<KLineData> kDataOpt = tushareService.getDailyKLine(trade.getStockCode(), today, true);
             if (kDataOpt.isEmpty()) continue;
             KLineData kData = kDataOpt.get();
+
+            List<ActualTrade> buys = actualTradeRepository.findUnmatchedBuys(trade.getStockCode()).stream()
+                    .filter(t -> t.getDirection() == TradeDirection.BUY)
+                    .toList();
+            BigDecimal totalQty = buys.stream()
+                    .map(ActualTrade::getQuantity)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+            BigDecimal marketValue = kData.close.multiply(totalQty);
+            BigDecimal totalValue = actualCashBalance.add(marketValue);
+            BigDecimal actualReturnPct = totalValue.subtract(baselineCapital)
+                    .divide(baselineCapital, 6, RoundingMode.HALF_UP)
+                    .multiply(BigDecimal.valueOf(100))
+                    .setScale(4, RoundingMode.HALF_UP);
 
             DailySnapshot snapshot = DailySnapshot.builder()
                     .actualTradeId(trade.getId())
@@ -180,6 +205,10 @@ public class MarketCloseTask {
                     .closePrice(kData.close)
                     .highPrice(kData.high)
                     .lowPrice(kData.low)
+                    .actualCashBalance(actualCashBalance)
+                    .actualMarketValue(marketValue)
+                    .actualTotalValue(totalValue)
+                    .actualReturnPercent(actualReturnPct)
                     .build();
 
             snapshotRepository.save(snapshot);

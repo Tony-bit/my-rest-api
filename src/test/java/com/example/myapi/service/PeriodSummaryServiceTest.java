@@ -3,11 +3,14 @@ package com.example.myapi.service;
 import com.example.myapi.dto.ViewDTO;
 import com.example.myapi.entity.*;
 import com.example.myapi.repository.*;
+import com.example.myapi.service.TushareService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -19,20 +22,26 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
+@MockitoSettings(strictness = Strictness.LENIENT)
 class PeriodSummaryServiceTest {
 
-    @Mock
-    private PlanRepository planRepository;
-    @Mock
-    private PlanExecutionRepository executionRepository;
-    @Mock
-    private ActualTradeRepository tradeRepository;
+    @Mock private PlanRepository planRepository;
+    @Mock private PlanExecutionRepository executionRepository;
+    @Mock private ActualTradeRepository tradeRepository;
+    @Mock private SystemConfigService systemConfigService;
+    @Mock private TushareService tushareService;
+    @Mock private SystemConfig systemConfig;
+    @Mock private PlanAccount planAccount;
 
     private PeriodSummaryService service;
 
     @BeforeEach
     void setUp() {
-        service = new PeriodSummaryService(planRepository, executionRepository, tradeRepository);
+        when(systemConfig.getBaselineCapital()).thenReturn(new BigDecimal("500000"));
+        when(systemConfigService.getSystemConfig()).thenReturn(systemConfig);
+        when(systemConfigService.getPlanAccount()).thenReturn(planAccount);
+        when(planAccount.getCashBalance()).thenReturn(new BigDecimal("500000"));
+        service = new PeriodSummaryService(planRepository, executionRepository, tradeRepository, systemConfigService, tushareService);
     }
 
     @Test

@@ -23,6 +23,7 @@ public class PlanExecutionService {
 
     private final PlanExecutionRepository executionRepository;
     private final PlanRepository planRepository;
+    private final SystemConfigService systemConfigService;
 
     @Transactional(readOnly = true)
     public List<PlanExecution> getByPlanId(Long planId) {
@@ -34,7 +35,24 @@ public class PlanExecutionService {
 
     @Transactional
     public PlanExecution recordExecution(Plan plan, TradeDirection direction, BigDecimal triggerPrice,
-                                          BigDecimal closePrice, BigDecimal maValue, Long conditionId) {
+                                         BigDecimal closePrice, BigDecimal maValue, Long conditionId) {
+        BigDecimal tradeAmount = triggerPrice.multiply(plan.getExecutionQuantity());
+
+        if (direction == TradeDirection.BUY) {
+            BigDecimal currentBalance = systemConfigService.getPlanAccount().getCashBalance();
+            if (tradeAmount.compareTo(currentBalance) > 0) {
+                throw new BusinessException(
+                        String.format("买入金额 %.2f 元超过预案账户现金余额 %.2f 元，无法执行买入",
+                                tradeAmount, currentBalance), 400);
+            }
+            systemConfigService.deductPlanCashBalance(tradeAmount);
+            log.info("PlanAccount cashBalance deducted: amount={}, remaining={}",
+                    tradeAmount, currentBalance.subtract(tradeAmount));
+        } else if (direction == TradeDirection.SELL) {
+            systemConfigService.addPlanCashBalance(tradeAmount);
+            log.info("PlanAccount cashBalance added: amount={}", tradeAmount);
+        }
+
         PlanExecution execution = PlanExecution.builder()
                 .plan(plan)
                 .tradeDate(LocalDate.now())

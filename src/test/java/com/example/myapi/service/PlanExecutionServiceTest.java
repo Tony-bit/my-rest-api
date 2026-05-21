@@ -21,16 +21,16 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 class PlanExecutionServiceTest {
 
-    @Mock
-    private PlanExecutionRepository executionRepository;
-    @Mock
-    private PlanRepository planRepository;
+    @Mock private PlanExecutionRepository executionRepository;
+    @Mock private PlanRepository planRepository;
+    @Mock private SystemConfigService systemConfigService;
+    @Mock private PlanAccount planAccount;
 
     private PlanExecutionService service;
 
     @BeforeEach
     void setUp() {
-        service = new PlanExecutionService(executionRepository, planRepository);
+        service = new PlanExecutionService(executionRepository, planRepository, systemConfigService);
     }
 
     // 3.1 recordExecution
@@ -38,6 +38,8 @@ class PlanExecutionServiceTest {
     @Test
     void recordExecution_normal_createsExecution() {
         Plan plan = TestFixtures.planBuilder().build();
+        when(systemConfigService.getPlanAccount()).thenReturn(planAccount);
+        when(planAccount.getCashBalance()).thenReturn(new BigDecimal("500000"));
         when(executionRepository.save(any(PlanExecution.class))).thenAnswer(inv -> {
             PlanExecution e = inv.getArgument(0);
             setField(e, "id", 1L);
@@ -55,12 +57,63 @@ class PlanExecutionServiceTest {
         assertTrue(result.getExecuted());
         assertEquals(new BigDecimal("10.00"), result.getTriggerPrice());
         assertEquals(new BigDecimal("10.05"), result.getClosePrice());
+        verify(systemConfigService).deductPlanCashBalance(any(BigDecimal.class));
         verify(executionRepository, times(1)).save(any(PlanExecution.class));
+    }
+
+    @Test
+    void recordExecution_buy_deductsCashBalance() {
+        Plan plan = TestFixtures.planBuilder().executionQuantity(new BigDecimal("100")).build();
+        when(systemConfigService.getPlanAccount()).thenReturn(planAccount);
+        when(planAccount.getCashBalance()).thenReturn(new BigDecimal("500000"));
+        when(executionRepository.save(any(PlanExecution.class))).thenAnswer(inv -> {
+            PlanExecution e = inv.getArgument(0);
+            setField(e, "id", 1L);
+            return e;
+        });
+
+        service.recordExecution(plan, TradeDirection.BUY,
+                new BigDecimal("10.00"), new BigDecimal("10.00"), null, null);
+
+        verify(systemConfigService).deductPlanCashBalance(new BigDecimal("1000.00"));
+    }
+
+    @Test
+    void recordExecution_sell_addsCashBalance() {
+        Plan plan = TestFixtures.planBuilder().executionQuantity(new BigDecimal("100")).build();
+        when(executionRepository.save(any(PlanExecution.class))).thenAnswer(inv -> {
+            PlanExecution e = inv.getArgument(0);
+            setField(e, "id", 1L);
+            return e;
+        });
+
+        service.recordExecution(plan, TradeDirection.SELL,
+                new BigDecimal("11.00"), new BigDecimal("11.00"), null, null);
+
+        verify(systemConfigService).addPlanCashBalance(new BigDecimal("1100.00"));
+    }
+
+    @Test
+    void recordExecution_buyInsufficientCash_throwsException() {
+        Plan plan = TestFixtures.planBuilder().executionQuantity(new BigDecimal("100")).build();
+        when(systemConfigService.getPlanAccount()).thenReturn(planAccount);
+        when(planAccount.getCashBalance()).thenReturn(new BigDecimal("500"));
+
+        BusinessException ex = assertThrows(BusinessException.class, () ->
+                service.recordExecution(plan, TradeDirection.BUY,
+                        new BigDecimal("10.00"), new BigDecimal("10.00"), null, null));
+
+        assertEquals(400, ex.getStatusCode());
+        assertTrue(ex.getMessage().contains("超过"));
+        verify(systemConfigService, never()).deductPlanCashBalance(any());
+        verify(executionRepository, never()).save(any());
     }
 
     @Test
     void recordExecution_conditionIdNull_noCrash() {
         Plan plan = TestFixtures.planBuilder().build();
+        when(systemConfigService.getPlanAccount()).thenReturn(planAccount);
+        when(planAccount.getCashBalance()).thenReturn(new BigDecimal("500000"));
         when(executionRepository.save(any(PlanExecution.class))).thenAnswer(inv -> {
             PlanExecution e = inv.getArgument(0);
             setField(e, "id", 1L);
@@ -81,7 +134,8 @@ class PlanExecutionServiceTest {
         Plan plan = TestFixtures.planBuilder().build();
         PlanCondition cond = TestFixtures.conditionBuilder().id(5L).plan(plan).build();
         setField(plan, "conditions", new ArrayList<>(List.of(cond)));
-
+        when(systemConfigService.getPlanAccount()).thenReturn(planAccount);
+        when(planAccount.getCashBalance()).thenReturn(new BigDecimal("500000"));
         when(executionRepository.save(any(PlanExecution.class))).thenAnswer(inv -> {
             PlanExecution e = inv.getArgument(0);
             setField(e, "id", 1L);

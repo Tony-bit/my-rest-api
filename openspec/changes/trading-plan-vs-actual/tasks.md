@@ -157,15 +157,57 @@
 - [ ] 14.7 Refactor PeriodSummaryService: 收益率改用 baselineCapital 重算
 - [ ] 14.8 Refactor HoldingsService: 浮盈计算改用 baselineCapital 作为基准
 
-### 14.9 前端初始化引导
+### 14.9 前端基准资金与设置页
 
-- [ ] 14.9.1 前端初始化引导页: 首次使用时提示录入基准资金（可跳过使用默认值 50 万，跳过后直接进入系统）
-  - 引导页录入的是 `baselineCapital`（全局基准）
-  - 同步录入 `ActualAccount.cashBalance`（实盘初始现金，可与基准不同）
-  - 首次跳过时：`baselineCapital` = 50万，`ActualAccount.cashBalance` = 50万
-- [ ] 14.9.2 前端系统设置页: 支持后续修改 `baselineCapital`（调用 `PUT /api/system-config/baseline-capital`）
-- [ ] 14.9.3 前端系统设置页: 支持后续修改 `ActualAccount.cashBalance`（调用 `PUT /api/actual-account/cash-balance`）
-- [ ] 14.9.4 前端新增 ActualAccount 实体初始化逻辑（首次使用系统时自动创建一条 ActualAccount 记录）
+**设计决策**：无 onboarding 引导。基准资金输入框始终可见于首页顶部；系统设置页展示账户信息。
+
+#### 14.9.1 前端项目初始化
+
+- [ ] 初始化 Vite + React + TypeScript 项目（frontend/）
+- [ ] 安装依赖：tailwindcss, @tanstack/react-query, react-router-dom, echarts, echarts-for-react, axios
+- [ ] 配置 Tailwind CSS
+- [ ] 配置 React Router（路由清单见 frontend-design.md）
+- [ ] 配置 React Query（API client、错误处理）
+- [ ] 实现目录结构（按 frontend-design.md 目录结构）
+
+#### 14.9.2 基准资金输入框（首页）
+
+- [ ] 实现 `<BaselineCapitalInput>` 组件
+  - 位于首页 KPI 卡片上方，始终可见，始终可编辑
+  - 默认值从 `GET /api/system-config` 获取
+  - 用户修改后点击"保存"触发 `PUT /api/system-config/baseline-capital`
+  - **提高基准**：显示提示"提高到 ¥X → 预案+实盘现金同步充值 +Y"
+  - **降低基准**：若 `新基准 > PlanAccount.cashBalance` 则显示警告 + 保存按钮禁用
+- [ ] 首页 KPI 卡片改用 baselineCapital 口径计算
+  - `预案组合收益率 = (预案现金 + 预案持仓市值 - baselineCapital) / baselineCapital × 100%`
+  - `实盘组合收益率 = (实盘现金 + 实盘持仓市值 - baselineCapital) / baselineCapital × 100%`
+  - `知行差 = 预案组合收益率 - 实盘组合收益率`
+- [ ] 走势图数据处理改用 baselineCapital 口径（GET /api/snapshots → 各日期的 planCashBalance / planMarketValue / actualCashBalance / actualMarketValue）
+- [ ] 持仓面板浮盈计算：`Σ(shares × currentPrice) - Σ(shares × costPrice)`，预案侧 + 实盘侧独立计算后合并展示
+
+#### 14.9.3 系统设置页
+
+- [ ] 实现 `/settings` 路由页面 `<SettingsPage>`
+- [ ] 实现 `<BaselineCapitalForm>` 组件（含实时影响说明）
+- [ ] 实现 `<AccountSummary>` 组件（预案账户信息 + 实盘账户信息）
+- [ ] 调用 `GET /api/system-config` 获取 baselineCapital
+- [ ] 调用 `GET /api/actual-account` 获取 ActualAccount.cashBalance
+- [ ] 调用 `GET /api/views/holdings?refresh=true` 获取持仓市值（计算总资产）
+- [ ] 保存时调用 `PUT /api/system-config/baseline-capital`
+
+#### 14.9.4 前端类型定义
+
+- [ ] 定义 `SystemConfig` 类型（baselineCapital, updatedAt）
+- [ ] 定义 `PlanAccount` 类型（cashBalance）
+- [ ] 定义 `ActualAccount` 类型（cashBalance）
+- [ ] 定义 `HoldingsResponse` 中 planCashBalance / actualCashBalance 字段
+
+#### 14.9.5 API 层
+
+- [ ] 实现 `api/systemConfig.ts`（GET /api/system-config, PUT /api/system-config/baseline-capital）
+- [ ] 实现 `api/actualAccount.ts`（GET /api/actual-account）
+- [ ] 实现 `useSystemConfig` hook
+- [ ] React Query key 约定：`['system-config'], ['actual-account']`
 
 ### 14.10 基准资金联动规则（spec: baseline-capital-override）
 

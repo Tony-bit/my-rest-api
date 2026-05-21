@@ -3,6 +3,7 @@ package com.example.myapi.service;
 import com.example.myapi.dto.ViewDTO;
 import com.example.myapi.entity.*;
 import com.example.myapi.repository.*;
+import com.example.myapi.service.TushareService.KLineData;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -24,6 +25,8 @@ public class PeriodSummaryService {
     private final PlanRepository planRepository;
     private final PlanExecutionRepository executionRepository;
     private final ActualTradeRepository tradeRepository;
+    private final SystemConfigService systemConfigService;
+    private final TushareService tushareService;
 
     @Transactional(readOnly = true)
     public ViewDTO.PeriodSummaryResponse getSummary(String period) {
@@ -44,6 +47,9 @@ public class PeriodSummaryService {
             default -> throw new IllegalArgumentException("period must be WEEK/MONTH/YEAR");
         }
 
+        BigDecimal baselineCapital = systemConfigService.getSystemConfig().getBaselineCapital();
+        BigDecimal planCashBalance = systemConfigService.getPlanAccount().getCashBalance();
+
         List<Plan> allPlans = planRepository.findAll();
         List<Plan> plansInRange = allPlans.stream()
                 .filter(p -> {
@@ -54,7 +60,7 @@ public class PeriodSummaryService {
 
         List<ViewDTO.PlanPeriodItem> planItems = plansInRange.stream()
                 .map(p -> {
-                    BigDecimal returnPct = calculatePlanReturn(p);
+                    BigDecimal returnPct = calculatePlanReturn(p, baselineCapital, planCashBalance);
                     return ViewDTO.PlanPeriodItem.builder()
                             .planId(p.getId())
                             .name(p.getName())
@@ -116,7 +122,7 @@ public class PeriodSummaryService {
                 .build();
     }
 
-    private BigDecimal calculatePlanReturn(Plan plan) {
+    private BigDecimal calculatePlanReturn(Plan plan, BigDecimal baselineCapital, BigDecimal planCashBalance) {
         if (plan.getStatus() == PlanStatus.PENDING) return BigDecimal.ZERO;
         List<PlanExecution> buys = executionRepository.findByPlanId(plan.getId()).stream()
                 .filter(e -> e.getDirection() == TradeDirection.BUY)
@@ -139,6 +145,20 @@ public class PeriodSummaryService {
                     .multiply(BigDecimal.valueOf(100))
                     .setScale(4, RoundingMode.HALF_UP);
         }
+
+        if (plan.getStatus() == PlanStatus.HOLDING) {
+            Optional<KLineData> kDataOpt = tushareService.getDailyKLine(
+                    plan.getStockCode(), LocalDate.now(), true);
+            if (kDataOpt.isEmpty()) return BigDecimal.ZERO;
+            KLineData kData = kDataOpt.get();
+            BigDecimal marketValue = kData.close.multiply(plan.getExecutionQuantity());
+            BigDecimal totalValue = planCashBalance.add(marketValue);
+            return totalValue.subtract(baselineCapital)
+                    .divide(baselineCapital, 6, RoundingMode.HALF_UP)
+                    .multiply(BigDecimal.valueOf(100))
+                    .setScale(4, RoundingMode.HALF_UP);
+        }
+
         return BigDecimal.ZERO;
     }
 }
