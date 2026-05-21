@@ -304,28 +304,28 @@ class PlanServiceTest {
     @Test
     void list_noFilters_callsFindAll() {
         when(planRepository.findAll()).thenReturn(List.of());
-        service.list(null, null);
+        service.list(null, null, null);
         verify(planRepository).findAll();
     }
 
     @Test
     void list_statusFilter_callsFindByStatus() {
         when(planRepository.findByStatus(PlanStatus.PENDING)).thenReturn(List.of());
-        service.list(PlanStatus.PENDING, null);
+        service.list(PlanStatus.PENDING, null, null);
         verify(planRepository).findByStatus(PlanStatus.PENDING);
     }
 
     @Test
     void list_stockCodeFilter_callsFindByStockCode() {
         when(planRepository.findByStockCode("000001")).thenReturn(List.of());
-        service.list(null, "000001");
+        service.list(null, "000001", null);
         verify(planRepository).findByStockCode("000001");
     }
 
     @Test
     void list_bothFilters_callsFindByStatusAndStockCode() {
         when(planRepository.findByStatusAndStockCode(PlanStatus.PENDING, "000001")).thenReturn(List.of());
-        service.list(PlanStatus.PENDING, "000001");
+        service.list(PlanStatus.PENDING, "000001", null);
         verify(planRepository).findByStatusAndStockCode(PlanStatus.PENDING, "000001");
     }
 

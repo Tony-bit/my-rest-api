@@ -51,3 +51,20 @@ export function useDeletePlan() {
     onSuccess: () => qc.invalidateQueries({ queryKey: PLAN_KEYS.all }),
   })
 }
+
+export function useTriggerPlan() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, targetDate }: { id: number; targetDate?: string }) =>
+      planApi.trigger(id, targetDate),
+    onSuccess: () => qc.invalidateQueries({ queryKey: PLAN_KEYS.all }),
+  })
+}
+
+export function useBatchTrigger() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (targetDate: string) => planApi.batchTrigger(targetDate),
+    onSuccess: () => qc.invalidateQueries({ queryKey: PLAN_KEYS.all }),
+  })
+}

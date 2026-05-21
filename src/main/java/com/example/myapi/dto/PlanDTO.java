@@ -96,6 +96,7 @@ public class PlanDTO {
         private PlanStatus status;
         private Boolean isLocked;
         private LocalDate validUntil;
+        private LocalDate triggerDate;
         private java.time.LocalDateTime createdAt;
     }
 }

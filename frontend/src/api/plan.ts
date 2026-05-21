@@ -36,6 +36,30 @@ export const planApi = {
 
   deleteCondition: (planId: number, conditionId: number) =>
     client.delete(`/plans/${planId}/conditions/${conditionId}`).then((r) => r.data),
+
+  trigger: (id: number, targetDate?: string) =>
+    client
+      .post<ApiResponse<TriggerDetail>>(`/plans/${id}/trigger`, targetDate ? { targetDate } : {})
+      .then((r) => r.data.data),
+
+  batchTrigger: (targetDate: string) =>
+    client
+      .post<ApiResponse<TriggerResult>>('/trigger', { targetDate })
+      .then((r) => r.data.data),
+}
+
+export interface TriggerDetail {
+  planId: number
+  stockName: string
+  status: string
+}
+
+export interface TriggerResult {
+  targetDate: string
+  totalPlans: number
+  triggered: number
+  skipped: number
+  details: TriggerDetail[]
 }
 
 export interface CreatePlanRequest {

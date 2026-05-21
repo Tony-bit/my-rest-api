@@ -4,7 +4,7 @@ import StatusBadge from '@/components/common/StatusBadge'
 import LoadingSkeleton from '@/components/common/LoadingSkeleton'
 import EmptyState from '@/components/common/EmptyState'
 import ErrorAlert from '@/components/common/ErrorAlert'
-import { usePlans, useDeletePlan } from '@/hooks'
+import { usePlans, useDeletePlan, useTriggerPlan, useBatchTrigger } from '@/hooks'
 import type { PlanStatus } from '@/types'
 
 const STATUS_OPTIONS: { value: string; label: string }[] = [
@@ -18,12 +18,15 @@ const STATUS_OPTIONS: { value: string; label: string }[] = [
 export default function PlanList() {
   const [statusFilter, setStatusFilter] = useState('')
   const [stockCodeSearch, setStockCodeSearch] = useState('')
+  const [batchDate, setBatchDate] = useState('')
 
   const { data: plans, isLoading, error } = usePlans({
     status: statusFilter || undefined,
     stockCode: stockCodeSearch || undefined,
   })
   const deleteMutation = useDeletePlan()
+  const triggerMutation = useTriggerPlan()
+  const batchTriggerMutation = useBatchTrigger()
 
   const handleDelete = async (id: number) => {
     if (!confirm('确认删除该预案？')) return
@@ -31,6 +34,29 @@ export default function PlanList() {
       await deleteMutation.mutateAsync(id)
     } catch {
       // handled by hook
+    }
+  }
+
+  const handleTrigger = async (id: number) => {
+    if (!confirm('确认触发该预案？')) return
+    try {
+      const result = await triggerMutation.mutateAsync({ id, targetDate: undefined })
+      alert(`${result.stockName}: ${result.status}`)
+    } catch (e) {
+      alert('触发失败: ' + (e as Error).message)
+    }
+  }
+
+  const handleBatchTrigger = async () => {
+    if (!batchDate) {
+      alert('请选择触发日期')
+      return
+    }
+    try {
+      const result = await batchTriggerMutation.mutateAsync(batchDate)
+      alert(`触发完成: ${result.triggered} 成功, ${result.skipped} 跳过`)
+    } catch (e) {
+      alert('批量触发失败: ' + (e as Error).message)
     }
   }
 
@@ -47,7 +73,7 @@ export default function PlanList() {
       </div>
 
       {/* 筛选栏 */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 flex-wrap">
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
@@ -61,6 +87,7 @@ export default function PlanList() {
           type="text"
           value={stockCodeSearch}
           onChange={(e) => setStockCodeSearch(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && setStockCodeSearch(stockCodeSearch)}
           placeholder="股票代码"
           className="px-3 py-1.5 text-sm bg-gray-900 border border-gray-700 rounded text-gray-300 placeholder-gray-600 focus:outline-none focus:border-blue-500 w-36"
         />
@@ -70,6 +97,23 @@ export default function PlanList() {
         >
           搜索
         </button>
+
+        {/* 批量触发 */}
+        <div className="flex items-center gap-2 ml-auto">
+          <input
+            type="date"
+            value={batchDate}
+            onChange={(e) => setBatchDate(e.target.value)}
+            className="px-3 py-1.5 text-sm bg-gray-900 border border-gray-700 rounded text-gray-300 focus:outline-none focus:border-blue-500"
+          />
+          <button
+            onClick={handleBatchTrigger}
+            disabled={batchTriggerMutation.isPending}
+            className="px-3 py-1.5 text-sm bg-green-600 hover:bg-green-500 text-white rounded border border-green-700 transition-colors disabled:opacity-50"
+          >
+            {batchTriggerMutation.isPending ? '触发中...' : '批量触发'}
+          </button>
+        </div>
       </div>
 
       {error && <ErrorAlert message={(error as Error).message} />}
@@ -82,6 +126,7 @@ export default function PlanList() {
               <tr className="text-left text-xs text-gray-500 border-b border-gray-800">
                 <th className="px-4 py-3 font-medium">名称</th>
                 <th className="px-4 py-3 font-medium">股票</th>
+                <th className="px-4 py-3 font-medium">触发日期</th>
                 <th className="px-4 py-3 font-medium">周期</th>
                 <th className="px-4 py-3 font-medium">状态</th>
                 <th className="px-4 py-3 font-medium">创建时间</th>
@@ -115,6 +160,7 @@ export default function PlanList() {
                     <td className="px-4 py-3 text-gray-400">
                       {plan.stockCode} {plan.stockName}
                     </td>
+                    <td className="px-4 py-3 text-gray-400">{plan.triggerDate || '-'}</td>
                     <td className="px-4 py-3 text-gray-400">{plan.cycle}</td>
                     <td className="px-4 py-3">
                       <StatusBadge status={plan.status as PlanStatus} />
@@ -128,6 +174,15 @@ export default function PlanList() {
                         >
                           详情
                         </Link>
+                        {plan.status === 'PENDING' && (
+                          <button
+                            onClick={() => handleTrigger(plan.id)}
+                            disabled={triggerMutation.isPending}
+                            className="text-xs text-green-400 hover:text-green-300 disabled:opacity-50"
+                          >
+                            触发
+                          </button>
+                        )}
                         {plan.status === 'PENDING' && (
                           <Link
                             to={`/plans/${plan.id}/edit`}

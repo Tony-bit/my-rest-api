@@ -4,13 +4,17 @@ import com.example.myapi.dto.ApiResponse;
 import com.example.myapi.dto.ConditionDTO;
 import com.example.myapi.dto.PlanDTO;
 import com.example.myapi.entity.PlanStatus;
+import com.example.myapi.service.ManualTriggerService;
 import com.example.myapi.service.PlanConditionService;
 import com.example.myapi.service.PlanService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
 import java.util.List;
 
 @RestController
@@ -20,6 +24,7 @@ public class PlanController {
 
     private final PlanService planService;
     private final PlanConditionService conditionService;
+    private final ManualTriggerService manualTriggerService;
 
     @PostMapping
     public ApiResponse<PlanDTO.Response> create(@Valid @RequestBody PlanDTO.CreateRequest request) {
@@ -34,8 +39,9 @@ public class PlanController {
     @GetMapping
     public ApiResponse<List<PlanDTO.ListResponse>> list(
             @RequestParam(required = false) PlanStatus status,
-            @RequestParam(required = false) String stockCode) {
-        return ApiResponse.ok(planService.list(status, stockCode));
+            @RequestParam(required = false) String stockCode,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate triggerDate) {
+        return ApiResponse.ok(planService.list(status, stockCode, triggerDate));
     }
 
     @PutMapping("/{id}")
@@ -77,5 +83,13 @@ public class PlanController {
             @PathVariable Long conditionId) {
         conditionService.delete(planId, conditionId);
         return ApiResponse.ok(null, "条件删除成功");
+    }
+
+    @PostMapping("/{id}/trigger")
+    public ApiResponse<ManualTriggerService.TriggerDetail> triggerSingle(
+            @PathVariable Long id,
+            @RequestBody(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate targetDate) {
+        ManualTriggerService.TriggerDetail detail = manualTriggerService.triggerSingle(id, targetDate);
+        return ApiResponse.ok(detail);
     }
 }

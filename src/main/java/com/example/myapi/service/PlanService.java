@@ -61,9 +61,11 @@ public class PlanService {
     }
 
     @Transactional(readOnly = true)
-    public List<PlanDTO.ListResponse> list(PlanStatus status, String stockCode) {
+    public List<PlanDTO.ListResponse> list(PlanStatus status, String stockCode, LocalDate triggerDate) {
         List<Plan> plans;
-        if (status != null && stockCode != null) {
+        if (triggerDate != null) {
+            plans = planRepository.findByTriggerDateAndStatus(triggerDate, PlanStatus.PENDING);
+        } else if (status != null && stockCode != null) {
             plans = planRepository.findByStatusAndStockCode(status, stockCode);
         } else if (status != null) {
             plans = planRepository.findByStatus(status);
@@ -174,6 +176,7 @@ public class PlanService {
                 .status(plan.getStatus())
                 .isLocked(plan.getIsLocked())
                 .validUntil(plan.getValidUntil())
+                .triggerDate(plan.getTriggerDate())
                 .createdAt(plan.getCreatedAt())
                 .build();
     }

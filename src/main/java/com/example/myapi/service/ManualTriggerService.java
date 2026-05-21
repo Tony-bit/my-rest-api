@@ -4,6 +4,7 @@ import com.example.myapi.entity.Plan;
 import com.example.myapi.entity.PlanExecution;
 import com.example.myapi.entity.PlanStatus;
 import com.example.myapi.entity.TradeDirection;
+import com.example.myapi.exception.BusinessException;
 import com.example.myapi.repository.PlanExecutionRepository;
 import com.example.myapi.repository.PlanRepository;
 import com.example.myapi.service.TushareService.KLineData;
@@ -107,4 +108,13 @@ public class ManualTriggerService {
             String stockName,
             String status
     ) {}
+
+    @Transactional
+    public TriggerDetail triggerSingle(Long planId, LocalDate targetDate) {
+        Plan plan = planRepository.findById(planId)
+                .orElseThrow(() -> new BusinessException("预案不存在: " + planId, 404));
+
+        LocalDate triggerDate = (targetDate != null) ? targetDate : plan.getTriggerDate();
+        return processPlan(plan, triggerDate);
+    }
 }

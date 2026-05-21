@@ -23,6 +23,7 @@ export interface Plan {
   status: PlanStatus
   isLocked: boolean
   validUntil: string
+  triggerDate?: string
   executionQuantity: number
   createdAt: string
   updatedAt: string
@@ -38,5 +39,6 @@ export interface PlanListItem {
   status: PlanStatus
   isLocked: boolean
   validUntil: string
+  triggerDate?: string
   createdAt: string
 }
