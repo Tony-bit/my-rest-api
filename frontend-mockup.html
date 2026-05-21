@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>预案与实盘对比系统 - 对比分析</title>
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            surface: { DEFAULT: '#1a1d23', elevated: '#22262e', border: '#2d3139' },
+            accent: { blue: '#5470C6', orange: '#FE5C3A', green: '#22C55E', red: '#EF4444', yellow: '#F59E0B' },
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif; }
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: #1a1d23; }
+    ::-webkit-scrollbar-thumb { background: #2d3139; border-radius: 3px; }
+    .chart-container { width: 100%; height: 360px; }
+    .period-btn { transition: all 0.2s; }
+    .period-btn:hover { transform: translateY(-1px); }
+    .period-btn.active { background: #5470C6; color: white; box-shadow: 0 2px 8px rgba(84,112,198,0.4); }
+    .metric-card { transition: transform 0.2s, box-shadow 0.2s; }
+    .metric-card:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,0.3); }
+    .table-row:hover { background: rgba(84,112,198,0.08); }
+    .sidebar-item { transition: all 0.15s; }
+    .sidebar-item:hover { background: rgba(84,112,198,0.12); }
+    .sidebar-item.active { background: rgba(84,112,198,0.2); border-left: 3px solid #5470C6; }
+    .nav-link { transition: all 0.15s; }
+    .nav-link:hover { color: #93c5fd; }
+  </style>
+</head>
+<body class="bg-[#111318] text-gray-100 min-h-screen">
+
+<!-- App Shell -->
+<div class="flex flex-col h-screen">
+
+  <!-- Top Bar -->
+  <header class="h-14 bg-surface border-b border-surface-border flex items-center px-5 justify-between shrink-0">
+    <div class="flex items-center gap-3">
+      <div class="w-7 h-7 rounded bg-accent-blue flex items-center justify-center text-white text-sm font-bold">预</div>
+      <span class="font-semibold text-sm tracking-wide">预案与实盘对比系统</span>
+    </div>
+    <div class="flex items-center gap-3">
+      <button class="nav-link text-gray-400 text-sm flex items-center gap-1.5 px-3 py-1.5 rounded hover:bg-elevated">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+        刷新
+      </button>
+      <button class="nav-link text-gray-400 text-sm flex items-center gap-1.5 px-3 py-1.5 rounded hover:bg-elevated">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+        设置
+      </button>
+    </div>
+  </header>
+
+  <!-- Body -->
+  <div class="flex flex-1 overflow-hidden">
+
+    <!-- Sidebar -->
+    <aside class="w-48 bg-surface border-r border-[#2d3139] flex flex-col shrink-0">
+      <nav class="flex-1 py-4">
+        <div class="px-3 mb-1">
+          <span class="text-xs text-gray-500 uppercase tracking-wider font-medium">导航</span>
+        </div>
+        <a href="#" class="sidebar-item active flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-100">
+          <svg class="w-4 h-4 text-accent-blue" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+          对比分析
+        </a>
+        <a href="#" class="sidebar-item flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-400">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+          预案管理
+        </a>
+        <a href="#" class="sidebar-item flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-400">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          实盘记录
+        </a>
+        <a href="#" class="sidebar-item flex items-center gap-2.5 px-4 py-2.5 text-sm text-gray-400">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          历史快照
+        </a>
+      </nav>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="flex-1 overflow-y-auto p-6">
+
+      <!-- Page Title -->
+      <div class="mb-6">
+        <h1 class="text-xl font-semibold text-white">对比分析</h1>
+        <p class="text-sm text-gray-500 mt-0.5">全局组合收益走势 · 预案 vs 实盘</p>
+      </div>
+
+      <!-- KPI Cards -->
+      <div class="grid grid-cols-3 gap-4 mb-6">
+        <div class="metric-card bg-surface rounded-xl border border-[#2d3139] p-5">
+          <div class="flex items-center justify-between mb-3">
+            <span class="text-xs text-gray-500 font-medium uppercase tracking-wider">预案累计收益</span>
+            <svg class="w-4 h-4 text-accent-blue" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
+          </div>
+          <div class="text-3xl font-bold text-accent-green">+12.34%</div>
+          <div class="text-xs text-gray-500 mt-1.5">统计周期内所有预案聚合</div>
+        </div>
+        <div class="metric-card bg-surface rounded-xl border border-[#2d3139] p-5">
+          <div class="flex items-center justify-between mb-3">
+            <span class="text-xs text-gray-500 font-medium uppercase tracking-wider">实盘累计收益</span>
+            <svg class="w-4 h-4 text-accent-orange" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
+          </div>
+          <div class="text-3xl font-bold text-accent-green">+15.78%</div>
+          <div class="text-xs text-gray-500 mt-1.5">统计周期内所有实盘聚合</div>
+        </div>
+        <div class="metric-card bg-surface rounded-xl border border-[#2d3139] p-5">
+          <div class="flex items-center justify-between mb-3">
+            <span class="text-xs text-gray-500 font-medium uppercase tracking-wider">知行差</span>
+            <svg class="w-4 h-4 text-accent-yellow" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+          </div>
+          <div class="text-3xl font-bold" style="color: #EF4444;">-3.44%</div>
+          <div class="text-xs mt-1.5" style="color: #EF4444;">实盘跑赢预案</div>
+        </div>
+      </div>
+
+      <!-- Chart Section -->
+      <div class="bg-surface rounded-xl border border-[#2d3139] p-5 mb-6">
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <h2 class="text-sm font-semibold text-white">累计收益走势</h2>
+            <p class="text-xs text-gray-500 mt-0.5">预案 vs 实盘 · 全局组合</p>
+          </div>
+          <div class="flex items-center gap-2 text-xs text-gray-500">
+            <span class="flex items-center gap-1.5">
+              <span class="w-3 h-0.5 rounded inline-block" style="background:#5470C6;"></span>
+              预案
+            </span>
+            <span class="flex items-center gap-1.5">
+              <span class="w-3 h-0.5 rounded inline-block" style="background:#FE5C3A;"></span>
+              实盘
+            </span>
+          </div>
+        </div>
+
+        <!-- Chart -->
+        <div id="chart" class="chart-container mb-4"></div>
+
+        <!-- Period Selector -->
+        <div class="flex items-center gap-2 flex-wrap">
+          <button class="period-btn px-4 py-1.5 rounded-full text-xs font-medium bg-[#2d3139] text-gray-300 active">本周</button>
+          <button class="period-btn px-4 py-1.5 rounded-full text-xs font-medium bg-[#2d3139] text-gray-300">本月</button>
+          <button class="period-btn px-4 py-1.5 rounded-full text-xs font-medium bg-[#2d3139] text-gray-300">近3月</button>
+          <button class="period-btn px-4 py-1.5 rounded-full text-xs font-medium bg-[#2d3139] text-gray-300">近半年</button>
+          <button class="period-btn px-4 py-1.5 rounded-full text-xs font-medium bg-[#2d3139] text-gray-300">本年</button>
+          <button class="period-btn px-4 py-1.5 rounded-full text-xs font-medium bg-[#2d3139] text-gray-300 border border-dashed border-gray-600">自定义</button>
+        </div>
+      </div>
+
+      <!-- Bottom Row: Holdings + Execution Log -->
+      <div class="grid grid-cols-2 gap-4 mb-6">
+        <!-- Holdings: Plan -->
+        <div class="bg-surface rounded-xl border border-[#2d3139] p-5">
+          <div class="flex items-center justify-between mb-4">
+            <div>
+              <h2 class="text-sm font-semibold text-white">当前持仓（预案）</h2>
+              <p class="text-xs text-gray-500 mt-0.5">持股中预案 · 按市值加权</p>
+            </div>
+            <a href="#" class="text-xs text-accent-blue hover:text-blue-400 flex items-center gap-0.5">
+              查看详情
+              <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+            </a>
+          </div>
+          <div class="space-y-2">
+            <div class="flex items-center justify-between py-2 border-b border-[#2d3139]">
+              <div class="flex items-center gap-2.5">
+                <span class="text-sm font-medium text-white">600519</span>
+                <span class="text-xs text-gray-500">贵州茅台</span>
+              </div>
+              <div class="text-right">
+                <span class="text-sm text-accent-green">+4.32%</span>
+              </div>
+            </div>
+            <div class="flex items-center justify-between py-2 border-b border-[#2d3139]">
+              <div class="flex items-center gap-2.5">
+                <span class="text-sm font-medium text-white">601318</span>
+                <span class="text-xs text-gray-500">中国平安</span>
+              </div>
+              <div class="text-right">
+                <span class="text-sm text-accent-green">+2.18%</span>
+              </div>
+            </div>
+            <div class="flex items-center justify-between py-2">
+              <div class="flex items-center gap-2.5">
+                <span class="text-sm font-medium text-white">000858</span>
+                <span class="text-xs text-gray-500">五粮液</span>
+              </div>
+              <div class="text-right">
+                <span class="text-sm text-accent-red">-1.05%</span>
+              </div>
+            </div>
+          </div>
+          <div class="mt-3 pt-3 border-t border-[#2d3139] flex items-center justify-between">
+            <span class="text-xs text-gray-500">持仓 3 只 · 总浮盈</span>
+            <span class="text-sm font-semibold text-accent-green">+3.84%</span>
+          </div>
+        </div>
+
+        <!-- Holdings: Actual -->
+        <div class="bg-surface rounded-xl border border-[#2d3139] p-5">
+          <div class="flex items-center justify-between mb-4">
+            <div>
+              <h2 class="text-sm font-semibold text-white">当前持仓（实盘）</h2>
+              <p class="text-xs text-gray-500 mt-0.5">FIFO 计价 · 按批次匹配</p>
+            </div>
+            <a href="#" class="text-xs text-accent-blue hover:text-blue-400 flex items-center gap-0.5">
+              查看详情
+              <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+            </a>
+          </div>
+          <div class="space-y-2">
+            <div class="flex items-center justify-between py-2 border-b border-[#2d3139]">
+              <div class="flex items-center gap-2.5">
+                <span class="text-sm font-medium text-white">600519</span>
+                <span class="text-xs text-gray-500">贵州茅台</span>
+              </div>
+              <div class="text-right">
+                <span class="text-sm text-accent-green">+5.10%</span>
+              </div>
+            </div>
+            <div class="flex items-center justify-between py-2">
+              <div class="flex items-center gap-2.5">
+                <span class="text-sm font-medium text-white">601318</span>
+                <span class="text-xs text-gray-500">中国平安</span>
+              </div>
+              <div class="text-right">
+                <span class="text-sm text-accent-green">+3.76%</span>
+              </div>
+            </div>
+          </div>
+          <div class="mt-3 pt-3 border-t border-[#2d3139] flex items-center justify-between">
+            <span class="text-xs text-gray-500">持仓 2 只 · 总浮盈</span>
+            <span class="text-sm font-semibold text-accent-green">+4.62%</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Execution Log -->
+      <div class="bg-surface rounded-xl border border-[#2d3139] p-5">
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <h2 class="text-sm font-semibold text-white">本周期执行记录</h2>
+            <p class="text-xs text-gray-500 mt-0.5">买入/卖出事件 · 按时间倒序</p>
+          </div>
+          <span class="text-xs text-gray-500">2026-05-19 ~ 2026-05-21</span>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead>
+              <tr class="text-xs text-gray-500 border-b border-[#2d3139]">
+                <th class="text-left py-2.5 font-medium">日期</th>
+                <th class="text-left py-2.5 font-medium">类型</th>
+                <th class="text-left py-2.5 font-medium">股票</th>
+                <th class="text-right py-2.5 font-medium">盈亏</th>
+                <th class="text-right py-2.5 font-medium">触发/成交价</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr class="table-row border-b border-[#2d3139]/50 text-sm">
+                <td class="py-2.5 text-gray-400">05-20</td>
+                <td class="py-2.5"><span class="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-accent-blue/15 text-accent-blue border border-accent-blue/30">预案买入</span></td>
+                <td class="py-2.5"><span class="text-white">600519</span> <span class="text-gray-500 text-xs">贵州茅台</span></td>
+                <td class="py-2.5 text-right text-gray-500">—</td>
+                <td class="py-2.5 text-right text-white">1,850.00</td>
+              </tr>
+              <tr class="table-row border-b border-[#2d3139]/50 text-sm">
+                <td class="py-2.5 text-gray-400">05-19</td>
+                <td class="py-2.5"><span class="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-accent-orange/15 text-accent-orange border border-accent-orange/30">实盘卖出</span></td>
+                <td class="py-2.5"><span class="text-white">000858</span> <span class="text-gray-500 text-xs">五粮液</span></td>
+                <td class="py-2.5 text-right text-accent-green">+6.54%</td>
+                <td class="py-2.5 text-right text-white">82.30</td>
+              </tr>
+              <tr class="table-row border-b border-[#2d3139]/50 text-sm">
+                <td class="py-2.5 text-gray-400">05-15</td>
+                <td class="py-2.5"><span class="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-accent-blue/15 text-accent-blue border border-accent-blue/30">预案买入</span></td>
+                <td class="py-2.5"><span class="text-white">601318</span> <span class="text-gray-500 text-xs">中国平安</span></td>
+                <td class="py-2.5 text-right text-gray-500">—</td>
+                <td class="py-2.5 text-right text-white">48.20</td>
+              </tr>
+              <tr class="table-row text-sm">
+                <td class="py-2.5 text-gray-400">05-10</td>
+                <td class="py-2.5"><span class="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-accent-orange/15 text-accent-orange border border-accent-orange/30">实盘买入</span></td>
+                <td class="py-2.5"><span class="text-white">000858</span> <span class="text-gray-500 text-xs">五粮液</span></td>
+                <td class="py-2.5 text-right text-gray-500">—</td>
+                <td class="py-2.5 text-right text-white">77.40</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </main>
+  </div>
+</div>
+
+<script>
+  // Chart: simulated trend data
+  const planData = [
+    ['2026-04-01', 0], ['2026-04-03', 0.8], ['2026-04-07', 1.5], ['2026-04-10', 2.3],
+    ['2026-04-14', 1.8], ['2026-04-17', 2.6], ['2026-04-21', 3.4], ['2026-04-24', 4.1],
+    ['2026-04-28', 3.7], ['2026-05-05', 4.5], ['2026-05-08', 5.2], ['2026-05-12', 6.1],
+    ['2026-05-15', 7.3], ['2026-05-19', 8.5], ['2026-05-21', 9.2]
+  ];
+  const actualData = [
+    ['2026-04-01', 0], ['2026-04-03', 0.5], ['2026-04-07', 1.2], ['2026-04-10', 1.9],
+    ['2026-04-14', 2.8], ['2026-04-17', 3.5], ['2026-04-21', 4.2], ['2026-04-24', 5.1],
+    ['2026-04-28', 5.8], ['2026-05-05', 6.5], ['2026-05-08', 7.4], ['2026-05-12', 8.3],
+    ['2026-05-15', 9.5], ['2026-05-19', 11.2], ['2026-05-21', 12.3]
+  ];
+
+  const chartDom = document.getElementById('chart');
+  const myChart = echarts.init(chartDom, null, { renderer: 'canvas' });
+
+  function buildTooltip(params) {
+    const plan = params[0];
+    const actual = params[1];
+    if (!plan) return '';
+    const planVal = (plan.data[1] || 0).toFixed(2);
+    const actualVal = actual ? (actual.data[1] || 0).toFixed(2) : '-';
+    const gap = (planVal - actualVal).toFixed(2);
+    const color = gap >= 0 ? '#22C55E' : '#EF4444';
+    return `<div style="font-size:12px;line-height:1.8;padding:4px 2px;">
+      <b style="color:#e2e8f0">${plan.data[0]}</b><br/>
+      <span style="color:#94a3b8">预案</span>: <b style="color:#5470C6">${planVal}%</b><br/>
+      <span style="color:#94a3b8">实盘</span>: <b style="color:#FE5C3A">${actualVal}%</b><br/>
+      <span style="color:#94a3b8">差值</span>: <span style="color:${color};font-weight:600">${gap >= 0 ? '+' : ''}${gap}%</span>
+    </div>`;
+  }
+
+  const option = {
+    backgroundColor: 'transparent',
+    grid: { top: 16, right: 24, bottom: 56, left: 60, containLabel: false },
+    tooltip: {
+      trigger: 'axis',
+      backgroundColor: '#22262e',
+      borderColor: '#2d3139',
+      borderWidth: 1,
+      textStyle: { color: '#e2e8f0', fontSize: 12 },
+      formatter: buildTooltip,
+      axisPointer: { type: 'cross', lineStyle: { color: '#2d3139' } }
+    },
+    legend: {
+      data: ['预案累计收益', '实盘累计收益'],
+      bottom: 0,
+      textStyle: { color: '#94a3b8', fontSize: 12 },
+      icon: 'roundRect',
+      itemWidth: 20,
+      itemHeight: 3
+    },
+    xAxis: {
+      type: 'time',
+      axisLine: { lineStyle: { color: '#2d3139' } },
+      axisLabel: { color: '#64748b', fontSize: 11, formatter: (val) => {
+        const d = new Date(val);
+        return `${d.getMonth()+1}/${d.getDate()}`;
+      }},
+      splitLine: { show: false },
+      axisTick: { show: false }
+    },
+    yAxis: {
+      type: 'value',
+      axisLabel: { color: '#64748b', fontSize: 11, formatter: '{value}%' },
+      splitLine: { lineStyle: { color: '#2d3139', type: 'dashed' } },
+      axisLine: { show: false },
+      axisTick: { show: false }
+    },
+    dataZoom: [
+      { type: 'inside', start: 0, end: 100 },
+      { type: 'slider', start: 0, end: 100, height: 18, bottom: 30,
+        borderColor: '#2d3139', backgroundColor: '#1a1d23',
+        fillerColor: 'rgba(84,112,198,0.15)', handleStyle: { color: '#5470C6' },
+        textStyle: { color: '#64748b', fontSize: 10 }, dataBackground: {
+          lineStyle: { color: '#2d3139' }, areaStyle: { color: '#2d3139' }
+        }
+      }
+    ],
+    series: [
+      {
+        name: '预案累计收益',
+        type: 'line',
+        smooth: 0.4,
+        symbol: 'none',
+        lineStyle: { color: '#5470C6', width: 2.5 },
+        areaStyle: {
+          color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+            { offset: 0, color: 'rgba(84,112,198,0.25)' },
+            { offset: 1, color: 'rgba(84,112,198,0.02)' }
+          ])
+        },
+        data: planData
+      },
+      {
+        name: '实盘累计收益',
+        type: 'line',
+        smooth: 0.4,
+        symbol: 'none',
+        lineStyle: { color: '#FE5C3A', width: 2.5 },
+        areaStyle: {
+          color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+            { offset: 0, color: 'rgba(254,92,58,0.2)' },
+            { offset: 1, color: 'rgba(254,92,58,0.02)' }
+          ])
+        },
+        data: actualData
+      }
+    ]
+  };
+
+  myChart.setOption(option);
+  window.addEventListener('resize', () => myChart.resize());
+</script>
+</body>
+</html>
