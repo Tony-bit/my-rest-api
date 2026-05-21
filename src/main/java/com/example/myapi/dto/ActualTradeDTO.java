@@ -63,9 +63,9 @@ public class ActualTradeDTO {
         private BigDecimal price;
         private BigDecimal quantity;
         private LocalDate tradeDate;
-        private BigDecimal profitLoss;
+        private BigDecimal profitLossAmount;
         private BigDecimal profitLossPercent;
-        private Boolean isMatched;
+        private Boolean matched;
         private Long matchedBuyId;
         private LocalDateTime createdAt;
         private LocalDateTime updatedAt;

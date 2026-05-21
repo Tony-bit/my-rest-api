@@ -16,6 +16,22 @@ import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.stream.Collectors;
 
+import com.example.myapi.dto.ViewDTO;
+import com.example.myapi.entity.*;
+import com.example.myapi.repository.*;
+import com.example.myapi.service.TushareService.KLineData;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
+import java.util.*;
+import java.util.stream.Collectors;
+
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -26,37 +42,43 @@ public class HoldingsService {
     private final ActualTradeRepository tradeRepository;
     private final TushareService tushareService;
 
+    private static final BigDecimal DEFAULT_BASELINE = new BigDecimal("500000");
+    private static final BigDecimal DEFAULT_CASH = new BigDecimal("500000");
+
     @Transactional(readOnly = true)
     public ViewDTO.HoldingsResponse getHoldings(boolean refresh) {
         LocalDate today = LocalDate.now();
         List<Plan> holdingPlans = planRepository.findByStatus(PlanStatus.HOLDING);
 
+        BigDecimal baselineCapital = DEFAULT_BASELINE;
+        BigDecimal planCashBalance = DEFAULT_CASH;
+        BigDecimal actualCashBalance = DEFAULT_CASH;
+
         List<ViewDTO.PlanHoldingDTO> planHoldings = new ArrayList<>();
         BigDecimal totalPlanPL = BigDecimal.ZERO;
-        BigDecimal totalPlanPLPct = BigDecimal.ZERO;
+        BigDecimal totalPlanMarketValue = BigDecimal.ZERO;
 
         for (Plan plan : holdingPlans) {
-            Optional<KLineData> kDataOpt = refresh
-                    ? tushareService.getDailyKLine(plan.getStockCode(), today, true)
-                    : tushareService.getDailyKLine(plan.getStockCode(), today, true);
-
+            Optional<KLineData> kDataOpt = tushareService.getDailyKLine(plan.getStockCode(), today, true);
             if (kDataOpt.isEmpty()) continue;
             KLineData kData = kDataOpt.get();
 
             List<PlanExecution> buys = executionRepository.findByPlanId(plan.getId()).stream()
                     .filter(e -> e.getDirection() == TradeDirection.BUY)
                     .toList();
-
             if (buys.isEmpty()) continue;
 
-            BigDecimal avgCost = buys.stream()
+            BigDecimal totalShares = BigDecimal.valueOf(buys.size())
+                    .multiply(plan.getExecutionQuantity() != null ? plan.getExecutionQuantity() : BigDecimal.ONE);
+            BigDecimal avgCostPerShare = buys.stream()
                     .map(PlanExecution::getTriggerPrice)
                     .reduce(BigDecimal.ZERO, BigDecimal::add)
                     .divide(BigDecimal.valueOf(buys.size()), 4, RoundingMode.HALF_UP);
-
-            BigDecimal unrealizedPL = kData.close.subtract(avgCost).setScale(2, RoundingMode.HALF_UP);
-            BigDecimal unrealizedPLPct = kData.close.subtract(avgCost)
-                    .divide(avgCost, 4, RoundingMode.HALF_UP)
+            BigDecimal costPrice = totalShares.multiply(avgCostPerShare);
+            BigDecimal currentValue = kData.close.multiply(totalShares);
+            BigDecimal unrealizedPLAmount = currentValue.subtract(costPrice).setScale(2, RoundingMode.HALF_UP);
+            BigDecimal unrealizedPLPercent = kData.close.subtract(avgCostPerShare)
+                    .divide(avgCostPerShare, 6, RoundingMode.HALF_UP)
                     .multiply(BigDecimal.valueOf(100))
                     .setScale(4, RoundingMode.HALF_UP);
 
@@ -65,13 +87,15 @@ public class HoldingsService {
 
             planHoldings.add(ViewDTO.PlanHoldingDTO.builder()
                     .planId(plan.getId())
-                    .name(plan.getName())
+                    .planName(plan.getName())
                     .stockCode(plan.getStockCode())
+                    .stockName(plan.getStockName())
                     .status(plan.getStatus())
-                    .costBasis(avgCost)
+                    .costPrice(avgCostPerShare)
+                    .quantity(totalShares)
                     .currentPrice(kData.close)
-                    .unrealizedPL(unrealizedPL)
-                    .unrealizedPLPercent(unrealizedPLPct)
+                    .unrealizedPLAmount(unrealizedPLAmount)
+                    .unrealizedPLPercent(unrealizedPLPercent)
                     .holdDays(holdDays)
                     .highPrice(kData.high)
                     .lowPrice(kData.low)
@@ -79,8 +103,8 @@ public class HoldingsService {
                     .entryDate(firstBuy.getTradeDate())
                     .build());
 
-            totalPlanPL = totalPlanPL.add(unrealizedPL);
-            totalPlanPLPct = totalPlanPLPct.add(unrealizedPLPct);
+            totalPlanPL = totalPlanPL.add(unrealizedPLAmount);
+            totalPlanMarketValue = totalPlanMarketValue.add(currentValue);
         }
 
         Map<String, List<ActualTrade>> tradesByStock = tradeRepository.findAll().stream()
@@ -89,7 +113,7 @@ public class HoldingsService {
 
         List<ViewDTO.ActualHoldingDTO> actualHoldings = new ArrayList<>();
         BigDecimal totalActualPL = BigDecimal.ZERO;
-        BigDecimal totalActualPLPct = BigDecimal.ZERO;
+        BigDecimal totalActualMarketValue = BigDecimal.ZERO;
 
         for (Map.Entry<String, List<ActualTrade>> entry : tradesByStock.entrySet()) {
             String stockCode = entry.getKey();
@@ -105,13 +129,11 @@ public class HoldingsService {
             BigDecimal totalCost = buys.stream()
                     .map(t -> t.getPrice().multiply(t.getQuantity()))
                     .reduce(BigDecimal.ZERO, BigDecimal::add);
-            BigDecimal avgCostBasis = totalCost.divide(totalQty, 4, RoundingMode.HALF_UP);
-
-            BigDecimal unrealizedPL = kData.close.subtract(avgCostBasis)
-                    .multiply(totalQty)
-                    .setScale(2, RoundingMode.HALF_UP);
-            BigDecimal unrealizedPLPct = kData.close.subtract(avgCostBasis)
-                    .divide(avgCostBasis, 4, RoundingMode.HALF_UP)
+            BigDecimal avgCostPrice = totalCost.divide(totalQty, 4, RoundingMode.HALF_UP);
+            BigDecimal marketValue = kData.close.multiply(totalQty);
+            BigDecimal unrealizedPLAmount = marketValue.subtract(totalCost).setScale(2, RoundingMode.HALF_UP);
+            BigDecimal unrealizedPLPercent = kData.close.subtract(avgCostPrice)
+                    .divide(avgCostPrice, 6, RoundingMode.HALF_UP)
                     .multiply(BigDecimal.valueOf(100))
                     .setScale(4, RoundingMode.HALF_UP);
 
@@ -120,28 +142,51 @@ public class HoldingsService {
             actualHoldings.add(ViewDTO.ActualHoldingDTO.builder()
                     .stockCode(stockCode)
                     .stockName(stockName)
-                    .openQuantity(totalQty)
-                    .avgCostBasis(avgCostBasis)
+                    .quantity(totalQty)
+                    .avgCostPrice(avgCostPrice)
                     .currentPrice(kData.close)
-                    .unrealizedPL(unrealizedPL)
-                    .unrealizedPLPercent(unrealizedPLPct)
+                    .unrealizedPLAmount(unrealizedPLAmount)
+                    .unrealizedPLPercent(unrealizedPLPercent)
                     .build());
 
-            totalActualPL = totalActualPL.add(unrealizedPL);
-            totalActualPLPct = totalActualPLPct.add(unrealizedPLPct);
+            totalActualPL = totalActualPL.add(unrealizedPLAmount);
+            totalActualMarketValue = totalActualMarketValue.add(marketValue);
         }
 
-        BigDecimal holdingGap = planHoldings.isEmpty() || actualHoldings.isEmpty()
-                ? BigDecimal.ZERO
-                : totalPlanPLPct.subtract(totalActualPLPct).setScale(4, RoundingMode.HALF_UP);
+        BigDecimal planTotalValue = planCashBalance.add(totalPlanMarketValue);
+        BigDecimal actualTotalValue = actualCashBalance.add(totalActualMarketValue);
+        BigDecimal planReturnPercent = planTotalValue.subtract(baselineCapital)
+                .divide(baselineCapital, 6, RoundingMode.HALF_UP)
+                .multiply(BigDecimal.valueOf(100))
+                .setScale(4, RoundingMode.HALF_UP);
+        BigDecimal actualReturnPercent = actualTotalValue.subtract(baselineCapital)
+                .divide(baselineCapital, 6, RoundingMode.HALF_UP)
+                .multiply(BigDecimal.valueOf(100))
+                .setScale(4, RoundingMode.HALF_UP);
+        BigDecimal holdingGap = planReturnPercent.subtract(actualReturnPercent).setScale(4, RoundingMode.HALF_UP);
 
         return ViewDTO.HoldingsResponse.builder()
+                .baselineCapital(baselineCapital)
+                .planCashBalance(planCashBalance)
+                .actualCashBalance(actualCashBalance)
                 .summary(ViewDTO.Summary.builder()
                         .totalPlanUnrealizedPL(totalPlanPL)
-                        .totalPlanUnrealizedPLPercent(totalPlanPLPct)
+                        .totalPlanUnrealizedPLPercent(planCashBalance.compareTo(BigDecimal.ZERO) > 0
+                                ? totalPlanPL.multiply(BigDecimal.valueOf(100))
+                                    .divide(planCashBalance, 6, RoundingMode.HALF_UP)
+                                    .setScale(4, RoundingMode.HALF_UP)
+                                : BigDecimal.ZERO)
                         .totalActualUnrealizedPL(totalActualPL)
-                        .totalActualUnrealizedPLPercent(totalActualPLPct)
+                        .totalActualUnrealizedPLPercent(actualCashBalance.compareTo(BigDecimal.ZERO) > 0
+                                ? totalActualPL.multiply(BigDecimal.valueOf(100))
+                                    .divide(actualCashBalance, 6, RoundingMode.HALF_UP)
+                                    .setScale(4, RoundingMode.HALF_UP)
+                                : BigDecimal.ZERO)
                         .holdingGap(holdingGap)
+                        .planTotalValue(planTotalValue)
+                        .actualTotalValue(actualTotalValue)
+                        .planReturnPercent(planReturnPercent)
+                        .actualReturnPercent(actualReturnPercent)
                         .build())
                 .planHoldings(planHoldings)
                 .actualHoldings(actualHoldings)

@@ -54,7 +54,7 @@ class ActualTradeServiceTest {
 
         assertNotNull(resp.getId());
         assertEquals(TradeDirection.BUY, resp.getDirection());
-        assertNull(resp.getProfitLoss());
+        assertNull(resp.getProfitLossAmount());
         verify(tradeRepository, times(1)).save(any(ActualTrade.class));
     }
 
@@ -87,8 +87,8 @@ class ActualTradeServiceTest {
         ActualTradeDTO.Response resp = service.create(request);
 
         assertNotNull(resp.getId());
-        assertEquals(new BigDecimal("100.00"), resp.getProfitLoss()); // (12-10)*50
-        assertTrue(resp.getIsMatched());
+        assertEquals(new BigDecimal("100.00"), resp.getProfitLossAmount()); // (12-10)*50
+        assertTrue(resp.getMatched());
     }
 
     @Test
@@ -109,7 +109,7 @@ class ActualTradeServiceTest {
                 .build();
 
         ActualTradeDTO.Response resp = service.create(request);
-        assertNull(resp.getProfitLoss());
+        assertNull(resp.getProfitLossAmount());
     }
 
     // 4.2 FIFO core scenarios
@@ -134,7 +134,7 @@ class ActualTradeServiceTest {
 
         ActualTradeDTO.Response resp = service.create(request);
 
-        assertEquals(new BigDecimal("200.00"), resp.getProfitLoss());
+        assertEquals(new BigDecimal("200.00"), resp.getProfitLossAmount());
         assertEquals(new BigDecimal("20.0000"), resp.getProfitLossPercent());
     }
 
@@ -169,7 +169,7 @@ class ActualTradeServiceTest {
         BigDecimal expectedPL = new BigDecimal("14.00").subtract(avgCost)
                 .multiply(new BigDecimal("150"))
                 .setScale(2, java.math.RoundingMode.HALF_UP);
-        assertNotNull(resp.getProfitLoss());
+        assertNotNull(resp.getProfitLossAmount());
     }
 
     @Test
@@ -195,7 +195,7 @@ class ActualTradeServiceTest {
 
         ActualTradeDTO.Response resp = service.create(request);
 
-        assertTrue(resp.getIsMatched());
+        assertTrue(resp.getMatched());
     }
 
     @Test
@@ -222,7 +222,7 @@ class ActualTradeServiceTest {
         ActualTradeDTO.Response resp = service.create(request);
 
         // Only matches 50 of BUY1 → avgCost=10, profit=(13-10)*50=150
-        assertEquals(new BigDecimal("150.00"), resp.getProfitLoss());
+        assertEquals(new BigDecimal("150.00"), resp.getProfitLossAmount());
         assertEquals(new BigDecimal("30.0000"), resp.getProfitLossPercent());
     }
 
@@ -246,7 +246,7 @@ class ActualTradeServiceTest {
 
         ActualTradeDTO.Response resp = service.create(request);
 
-        assertEquals(new BigDecimal("-500.00"), resp.getProfitLoss());
+        assertEquals(new BigDecimal("-500.00"), resp.getProfitLossAmount());
         assertEquals(new BigDecimal("-25.0000"), resp.getProfitLossPercent());
     }
 
@@ -281,8 +281,8 @@ class ActualTradeServiceTest {
                 .tradeDate(LocalDate.of(2026, 5, 21)).build();
         ActualTradeDTO.Response resp2 = service.create(req2);
 
-        assertEquals(new BigDecimal("100.00"), resp1.getProfitLoss()); // (12-10)*50
-        assertEquals(new BigDecimal("30.00"), resp2.getProfitLoss());  // (11-10)*30
+        assertEquals(new BigDecimal("100.00"), resp1.getProfitLossAmount()); // (12-10)*50
+        assertEquals(new BigDecimal("30.00"), resp2.getProfitLossAmount());  // (11-10)*30
     }
 
     @Test
@@ -313,7 +313,7 @@ class ActualTradeServiceTest {
         ActualTradeDTO.Response resp = service.create(request);
 
         // Should match BUY1 (earlier date) → (12-15)*100 = -300
-        assertEquals(new BigDecimal("-300.00"), resp.getProfitLoss());
+        assertEquals(new BigDecimal("-300.00"), resp.getProfitLossAmount());
     }
 
     // 4.3 update

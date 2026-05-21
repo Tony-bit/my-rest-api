@@ -52,7 +52,7 @@ public class SnapshotController {
                 .actualReturn(s.getActualReturn())
                 .actualReturnPercent(s.getActualReturnPercent())
                 .openQuantity(s.getOpenQuantity())
-                .avgCostBasis(s.getAvgCostBasis())
+                .avgCostPrice(s.getAvgCostBasis())
                 .closePrice(s.getClosePrice())
                 .highPrice(s.getHighPrice())
                 .lowPrice(s.getLowPrice())

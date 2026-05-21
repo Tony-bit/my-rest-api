@@ -29,10 +29,18 @@ public class SnapshotDTO {
         private BigDecimal actualReturn;
         private BigDecimal actualReturnPercent;
         private BigDecimal openQuantity;
-        private BigDecimal avgCostBasis;
+        private BigDecimal avgCostPrice;
         private BigDecimal closePrice;
         private BigDecimal highPrice;
         private BigDecimal lowPrice;
+        private BigDecimal planCashBalance;
+        private BigDecimal planMarketValue;
+        private BigDecimal planTotalValue;
+        private BigDecimal planReturnPct;
+        private BigDecimal actualCashBalance;
+        private BigDecimal actualMarketValue;
+        private BigDecimal actualTotalValue;
+        private BigDecimal actualReturnPct;
         private LocalDateTime createdAt;
     }
 }

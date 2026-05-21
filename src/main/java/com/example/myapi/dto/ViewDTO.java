@@ -75,6 +75,9 @@ public class ViewDTO {
     @AllArgsConstructor
     @Builder
     public static class HoldingsResponse {
+        private BigDecimal baselineCapital;
+        private BigDecimal planCashBalance;
+        private BigDecimal actualCashBalance;
         private Summary summary;
         private java.util.List<PlanHoldingDTO> planHoldings;
         private java.util.List<ActualHoldingDTO> actualHoldings;
@@ -90,6 +93,10 @@ public class ViewDTO {
         private BigDecimal totalActualUnrealizedPL;
         private BigDecimal totalActualUnrealizedPLPercent;
         private BigDecimal holdingGap;
+        private BigDecimal planTotalValue;
+        private BigDecimal actualTotalValue;
+        private BigDecimal planReturnPercent;
+        private BigDecimal actualReturnPercent;
     }
 
     @Data
@@ -98,12 +105,14 @@ public class ViewDTO {
     @Builder
     public static class PlanHoldingDTO {
         private Long planId;
-        private String name;
+        private String planName;
         private String stockCode;
+        private String stockName;
         private PlanStatus status;
-        private BigDecimal costBasis;
+        private BigDecimal costPrice;
+        private BigDecimal quantity;
         private BigDecimal currentPrice;
-        private BigDecimal unrealizedPL;
+        private BigDecimal unrealizedPLAmount;
         private BigDecimal unrealizedPLPercent;
         private Integer holdDays;
         private BigDecimal highPrice;
@@ -119,10 +128,10 @@ public class ViewDTO {
     public static class ActualHoldingDTO {
         private String stockCode;
         private String stockName;
-        private BigDecimal openQuantity;
-        private BigDecimal avgCostBasis;
+        private BigDecimal quantity;
+        private BigDecimal avgCostPrice;
         private BigDecimal currentPrice;
-        private BigDecimal unrealizedPL;
+        private BigDecimal unrealizedPLAmount;
         private BigDecimal unrealizedPLPercent;
     }
 }
