@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react'
 import TrendChart from '@/components/views/TrendChart'
 import BaselineCapitalInput from '@/components/views/BaselineCapitalInput'
 import LoadingSkeleton from '@/components/common/LoadingSkeleton'
-import { useHoldings, useSnapshots, usePeriodSummary } from '@/hooks'
+import { useDashboard, useHoldings } from '@/hooks'
 
 type Period = 'WEEK' | 'MONTH' | 'YEAR'
 const PERIODS: { value: Period; label: string }[] = [
@@ -14,42 +14,23 @@ const PERIODS: { value: Period; label: string }[] = [
 export default function Dashboard() {
   const [period, setPeriod] = useState<Period>('MONTH')
 
+  const { data: dashboard, isLoading: dashboardLoading } = useDashboard()
   const { data: holdings, isLoading: holdingsLoading } = useHoldings()
-  const { data: snapshots, isLoading: snapshotsLoading } = useSnapshots()
-  const { data: summary } = usePeriodSummary(period)
 
-  // 计算走势图数据
+  const kpis = dashboard?.kpis
   const trendData = useMemo(() => {
-    if (!snapshots) return []
-    const byDate: Record<string, typeof snapshots> = {}
-    snapshots.forEach((s) => {
-      if (!byDate[s.snapshotDate]) byDate[s.snapshotDate] = []
-      byDate[s.snapshotDate].push(s)
-    })
-    const dates = Object.keys(byDate).sort()
-    let planCum = 0
-    let actualCum = 0
-    return dates.map((date) => {
-      const daySnaps = byDate[date]
-      const planReturn =
-        daySnaps.reduce((sum, s) => sum + s.planReturnPercent, 0) / Math.max(daySnaps.length, 1)
-      const actualReturn =
-        daySnaps.reduce((sum, s) => sum + (s.actualReturnPercent ?? 0), 0) /
-        Math.max(daySnaps.length, 1)
-      planCum += planReturn
-      actualCum += actualReturn
-      return {
-        date,
-        planCumulative: parseFloat(planCum.toFixed(2)),
-        actualCumulative: parseFloat(actualCum.toFixed(2)),
-      }
-    })
-  }, [snapshots])
+    if (!dashboard?.trend || dashboard.trend.length === 0) return []
+    return dashboard.trend.map((t) => ({
+      date: t.date,
+      planCumulative: parseFloat((t.planReturnPercent ?? 0).toFixed(2)),
+      actualCumulative: parseFloat((t.actualReturnPercent ?? 0).toFixed(2)),
+    }))
+  }, [dashboard?.trend])
 
-  const baseline = holdings?.baselineCapital ?? 0
-  const planReturnPct = holdings?.summary.planReturnPercent ?? 0
-  const actualReturnPct = holdings?.summary.actualReturnPercent ?? 0
-  const gap = planReturnPct - actualReturnPct
+  const baseline = dashboard?.baselineCapital ?? 0
+  const planReturnPct = kpis?.planReturnPercent ?? 0
+  const actualReturnPct = kpis?.actualReturnPercent ?? 0
+  const gap = kpis?.holdingGap ?? 0
 
   const fmt = (n: number) => (n >= 0 ? `+${n.toFixed(2)}%` : `${n.toFixed(2)}%`)
 
@@ -57,7 +38,11 @@ export default function Dashboard() {
     <div className="p-6 space-y-6">
       <h2 className="text-base font-medium text-gray-200">对比分析</h2>
 
-      <BaselineCapitalInput planCashBalance={holdings?.planCashBalance} readonly={false} />
+      <BaselineCapitalInput
+        planCashBalance={kpis?.planCashBalance}
+        actualCashBalance={kpis?.actualCashBalance}
+        readonly={true}
+      />
 
       {/* KPI 卡片 */}
       <div className="grid grid-cols-3 gap-4">
@@ -65,22 +50,22 @@ export default function Dashboard() {
           label="预案收益"
           value={fmt(planReturnPct)}
           valueColor={planReturnPct >= 0 ? 'text-green-400' : 'text-red-400'}
-          sub={`总资产 ¥${((holdings?.summary.planTotalValue) ?? 0).toLocaleString('zh-CN', { maximumFractionDigits: 0 })}`}
-          loading={holdingsLoading}
+          sub={`预案资金 ¥${((holdings?.summary?.planTotalValue) ?? 0).toLocaleString('zh-CN', { maximumFractionDigits: 0 })}`}
+          loading={dashboardLoading}
         />
         <KpiCard
           label="实盘收益"
           value={fmt(actualReturnPct)}
           valueColor={actualReturnPct >= 0 ? 'text-orange-400' : 'text-red-400'}
-          sub={`总资产 ¥${((holdings?.summary.actualTotalValue) ?? 0).toLocaleString('zh-CN', { maximumFractionDigits: 0 })}`}
-          loading={holdingsLoading}
+          sub={`实盘资金 ¥${((holdings?.summary?.actualTotalValue) ?? 0).toLocaleString('zh-CN', { maximumFractionDigits: 0 })}`}
+          loading={dashboardLoading}
         />
         <KpiCard
           label="知行差"
           value={fmt(gap)}
           valueColor={gap >= 0 ? 'text-green-400' : 'text-red-400'}
           sub={gap >= 0 ? '预案更优' : '实盘更优'}
-          loading={holdingsLoading}
+          loading={dashboardLoading}
         />
       </div>
 
@@ -104,11 +89,11 @@ export default function Dashboard() {
             ))}
           </div>
         </div>
-        {!snapshotsLoading && trendData.length > 0 ? (
+        {!dashboardLoading && trendData.length > 0 ? (
           <TrendChart data={trendData} baselineCapital={baseline} />
         ) : (
           <div className="h-64 flex items-center justify-center text-gray-600 text-sm">
-            {snapshotsLoading ? '加载中…' : '暂无走势数据'}
+            {dashboardLoading ? '加载中…' : '暂无走势数据'}
           </div>
         )}
       </div>
@@ -134,7 +119,7 @@ export default function Dashboard() {
           holdings={
             (holdings?.actualHoldings ?? []).map((h) => ({
               stockCode: h.stockCode,
-              stockName: h.stockName,
+              stockName: h.stockName ?? '',
               unrealizedPLAmount: h.unrealizedPLAmount,
               unrealizedPLPercent: h.unrealizedPLPercent,
               quantity: h.quantity,
@@ -188,14 +173,14 @@ function HoldingPanel({
   holdings: {
     stockCode: string
     stockName: string
-    unrealizedPL: number
+    unrealizedPLAmount: number
     unrealizedPLPercent: number
     quantity: number
   }[]
   loading: boolean
   linkTo: string
 }) {
-  const totalPL = holdings.reduce((s, h) => s + h.unrealizedPL, 0)
+  const totalPL = holdings.reduce((s, h) => s + h.unrealizedPLAmount, 0)
   const fmtPL = (n: number) =>
     n >= 0
       ? `+¥${n.toLocaleString('zh-CN')}`
