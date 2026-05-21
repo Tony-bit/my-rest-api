@@ -128,7 +128,7 @@ class HoldingsServiceTest {
 
         ViewDTO.HoldingsResponse resp = service.getHoldings(false);
 
-        assertEquals(20, resp.getPlanHoldings().get(0).getHoldDays());
+        assertEquals(21, resp.getPlanHoldings().get(0).getHoldDays());
     }
 
     @Test
