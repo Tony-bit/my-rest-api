@@ -45,7 +45,7 @@ public class PlanConditionService {
 
         PlanCondition saved = conditionRepository.save(cond);
         log.info("Created condition id={} for planId={}", saved.getId(), planId);
-        return toResponse(saved);
+        return ConditionDTO.Response.toResponse(saved);
     }
 
     @Transactional(readOnly = true)
@@ -54,7 +54,7 @@ public class PlanConditionService {
             throw new BusinessException("预案不存在: " + planId, 404);
         }
         return conditionRepository.findByPlanId(planId).stream()
-                .map(ConditionDTO::toResponse)
+                .map(ConditionDTO.Response::toResponse)
                 .collect(java.util.stream.Collectors.toList());
     }
 
@@ -86,7 +86,7 @@ public class PlanConditionService {
             throw new BusinessException("PRICE 类型的目标价格必须大于 0");
         }
 
-        ConditionDTO.Response resp = ConditionDTO.toResponse(conditionRepository.save(cond));
+        ConditionDTO.Response resp = ConditionDTO.Response.toResponse(conditionRepository.save(cond));
         log.info("Updated condition id={}", conditionId);
         return resp;
     }

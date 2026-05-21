@@ -95,6 +95,8 @@ public class TushareService {
         }
     }
 
+    private static final BigDecimal TOUCH_THRESHOLD = new BigDecimal("0.003"); // 0.3%
+
     public boolean evaluateCondition(PlanCondition condition, KLineData kData, BigDecimal maValue) {
         ConditionType type = condition.getConditionType();
         TradeDirection dir = condition.getDirection();
@@ -106,8 +108,10 @@ public class TushareService {
             if (dir == TradeDirection.SELL) return close.compareTo(target) <= 0;
         } else if (type == ConditionType.MA) {
             if (maValue == null) return false;
-            if (dir == TradeDirection.BUY) return close.compareTo(maValue) >= 0;
-            if (dir == TradeDirection.SELL) return close.compareTo(maValue) <= 0;
+            // 触碰型语义：|close - MA| / close <= 0.3%，买入卖出相同
+            BigDecimal diff = close.subtract(maValue).abs();
+            BigDecimal ratio = diff.divide(close, 6, RoundingMode.HALF_UP);
+            return ratio.compareTo(TOUCH_THRESHOLD) <= 0;
         }
         return false;
     }

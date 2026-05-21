@@ -140,10 +140,10 @@ class TushareServiceTest {
                 .conditionType(ConditionType.MA)
                 .direction(TradeDirection.SELL)
                 .build();
-        KLineData kd = TestFixtures.kLineBuilder().close(new BigDecimal("10.967")).build();
+        KLineData kd = TestFixtures.kLineBuilder().close(new BigDecimal("10.97")).build();
 
         assertTrue(service.evaluateCondition(cond, kd, new BigDecimal("11.00")));
-        // 触碰型: |10.967 - 11.00| / 10.967 = 0.3% 刚好触发
+        // 触碰型: |10.97 - 11.00| / 10.97 = 0.273% <= 0.3% 触发
     }
 
     @Test
