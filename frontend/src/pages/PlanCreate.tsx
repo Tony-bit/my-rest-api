@@ -77,7 +77,7 @@ export default function PlanCreate() {
         {/* 基本信息 */}
         <section className="space-y-3">
           <h3 className="text-sm font-medium text-gray-300">基本信息</h3>
-          <Field label="预案名称 *" required>
+          <Field label="预案名称 *">
             <input
               value={form.name}
               onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
@@ -86,7 +86,7 @@ export default function PlanCreate() {
             />
           </Field>
           <div className="grid grid-cols-2 gap-3">
-            <Field label="股票代码 *" required>
+            <Field label="股票代码 *">
               <input
                 value={form.stockCode}
                 onChange={(e) => setForm((f) => ({ ...f, stockCode: e.target.value }))}
@@ -189,7 +189,7 @@ export default function PlanCreate() {
   )
 }
 
-function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
       <label className="block text-xs text-gray-500 mb-1">

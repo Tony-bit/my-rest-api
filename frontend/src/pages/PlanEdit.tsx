@@ -3,9 +3,8 @@ import { useParams, useNavigate } from 'react-router-dom'
 import ErrorAlert from '@/components/common/ErrorAlert'
 import LoadingSkeleton from '@/components/common/LoadingSkeleton'
 import { usePlan, useUpdatePlan } from '@/hooks'
-import type { Cycle, ConditionType, Direction } from '@/types'
+import type { Cycle } from '@/types'
 
-const MA_PERIODS = [5, 10, 20, 60, 120, 250]
 const CYCLE_OPTIONS: { value: Cycle; label: string }[] = [
   { value: 'DAILY', label: '日度' },
   { value: 'WEEKLY', label: '周度' },
@@ -28,12 +27,6 @@ export default function PlanEdit() {
     validUntil: '',
     executionQuantity: 100,
   })
-  const [buyType, setBuyType] = useState<ConditionType>('MA')
-  const [buyMaPeriod, setBuyMaPeriod] = useState(20)
-  const [buyPrice, setBuyPrice] = useState('')
-  const [sellType, setSellType] = useState<ConditionType>('MA')
-  const [sellMaPeriod, setSellMaPeriod] = useState(10)
-  const [sellPrice, setSellPrice] = useState('')
   const [error, setError] = useState('')
 
   useEffect(() => {
@@ -46,18 +39,6 @@ export default function PlanEdit() {
       validUntil: plan.validUntil,
       executionQuantity: plan.executionQuantity,
     })
-    const buyCond = plan.conditions.find((c) => c.direction === 'BUY')
-    const sellCond = plan.conditions.find((c) => c.direction === 'SELL')
-    if (buyCond) {
-      setBuyType(buyCond.conditionType)
-      if (buyCond.conditionType === 'MA') setBuyMaPeriod(buyCond.maPeriod ?? 20)
-      else setBuyPrice(String(buyCond.targetPrice ?? ''))
-    }
-    if (sellCond) {
-      setSellType(sellCond.conditionType)
-      if (sellCond.conditionType === 'MA') setSellMaPeriod(sellCond.maPeriod ?? 10)
-      else setSellPrice(String(sellCond.targetPrice ?? ''))
-    }
   }, [plan])
 
   const handleSubmit = async (e: React.FormEvent) => {

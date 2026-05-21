@@ -1,6 +1,5 @@
 import type {
   Plan,
-  PlanExecution,
   ActualTrade,
   HoldingsResponse,
   PeriodSummary,
@@ -39,8 +38,9 @@ const mockPlans: Plan[] = [
     stockName: '贵州茅台',
     cycle: 'WEEKLY',
     status: 'HOLDING',
+    isLocked: false,
     validUntil: '2026-05-31',
-    shares: 100,
+    executionQuantity: 100,
     createdAt: '2026-05-01T10:23:00',
     updatedAt: '2026-05-15T15:00:00',
     conditions: [
@@ -55,8 +55,9 @@ const mockPlans: Plan[] = [
     stockName: '中国平安',
     cycle: 'WEEKLY',
     status: 'PENDING',
+    isLocked: false,
     validUntil: '2026-05-25',
-    shares: 200,
+    executionQuantity: 200,
     createdAt: '2026-04-20T09:00:00',
     updatedAt: '2026-04-20T09:00:00',
     conditions: [
@@ -70,8 +71,9 @@ const mockPlans: Plan[] = [
     stockName: '五粮液',
     cycle: 'MONTHLY',
     status: 'CLOSED',
+    isLocked: false,
     validUntil: '2026-04-30',
-    shares: 1000,
+    executionQuantity: 1000,
     createdAt: '2026-04-01T08:00:00',
     updatedAt: '2026-04-15T15:00:00',
     conditions: [
@@ -86,8 +88,9 @@ const mockPlans: Plan[] = [
     stockName: '格力电器',
     cycle: 'WEEKLY',
     status: 'EXPIRED',
+    isLocked: false,
     validUntil: '2026-03-28',
-    shares: 300,
+    executionQuantity: 300,
     createdAt: '2026-03-20T11:00:00',
     updatedAt: '2026-03-28T17:00:00',
     conditions: [
@@ -97,7 +100,7 @@ const mockPlans: Plan[] = [
 ]
 
 // 预案执行记录
-const mockExecutions: Record<number, PlanExecution[]> = {
+const mockExecutions: Record<number, import('@/api/planExecution').PlanExecution[]> = {
   1: [
     {
       id: 1,
@@ -107,6 +110,9 @@ const mockExecutions: Record<number, PlanExecution[]> = {
       triggerPrice: 1850.0,
       maValue: 1847.5,
       quantity: 100,
+      triggered: true,
+      executed: false,
+      createdAt: '2026-05-15T12:00:00',
     },
   ],
   3: [
@@ -117,6 +123,9 @@ const mockExecutions: Record<number, PlanExecution[]> = {
       direction: 'BUY',
       triggerPrice: 77.4,
       quantity: 1000,
+      triggered: true,
+      executed: true,
+      createdAt: '2026-04-05T09:30:00',
     },
     {
       id: 3,
@@ -125,6 +134,9 @@ const mockExecutions: Record<number, PlanExecution[]> = {
       direction: 'SELL',
       triggerPrice: 82.3,
       quantity: 1000,
+      triggered: true,
+      executed: true,
+      createdAt: '2026-04-15T15:00:00',
     },
   ],
 }
@@ -202,8 +214,14 @@ const mockHoldings: HoldingsResponse = {
   ],
   summary: {
     totalPlanUnrealizedPL: 6250,
+    totalPlanUnrealizedPLPercent: 1.25,
     totalActualUnrealizedPL: 6250,
+    totalActualUnrealizedPLPercent: 1.25,
     holdingGap: 0,
+    planTotalValue: 508250,
+    actualTotalValue: 508250,
+    planReturnPercent: 1.65,
+    actualReturnPercent: 1.65,
   },
 }
 
@@ -237,8 +255,25 @@ function generateTrendData() {
         stockCode: s.code,
         stockName: s.name,
         planStatus: idx === 0 ? 'HOLDING' : idx === 1 ? 'CLOSED' : 'PENDING',
+        planReturn: parseFloat((planReturn + idx * 0.2).toFixed(2)),
         planReturnPercent: parseFloat((planReturn + idx * 0.2).toFixed(2)),
+        hasActualTrade: idx === 1,
+        actualReturn: idx === 1 ? parseFloat((actualReturn + idx * 0.15).toFixed(2)) : null,
         actualReturnPercent: parseFloat((actualReturn + idx * 0.15).toFixed(2)),
+        openQuantity: 100,
+        avgCostPrice: 1850,
+        closePrice: 1912.5,
+        highPrice: 1935,
+        lowPrice: 1890,
+        planCashBalance: 483200,
+        planMarketValue: 191250,
+        planTotalValue: 674450,
+        planReturnPct: parseFloat((planReturn + idx * 0.2).toFixed(2)),
+        actualCashBalance: 495000,
+        actualMarketValue: 191250,
+        actualTotalValue: 686250,
+        actualReturnPct: parseFloat((actualReturn + idx * 0.15).toFixed(2)),
+        createdAt: dateStr + 'T16:00:00',
       })
     })
   }
@@ -251,21 +286,27 @@ const mockSnapshots = generateTrendData()
 const mockPeriodSummary: Record<string, PeriodSummary> = {
   WEEK: {
     period: 'WEEK',
-    planReturnPercent: 1.2,
-    actualReturnPercent: 1.8,
-    gap: -0.6,
+    planSummary: { totalTrades: 8, pendingCount: 2, totalReturn: 1.2, avgReturn: 0.15 },
+    actualSummary: { totalTrades: 5, totalReturn: 1.8, avgReturn: 0.36 },
+    gapPercent: -0.6,
+    planList: [],
+    actualList: [],
   },
   MONTH: {
     period: 'MONTH',
-    planReturnPercent: 4.5,
-    actualReturnPercent: 3.1,
-    gap: 1.4,
+    planSummary: { totalTrades: 22, pendingCount: 5, totalReturn: 4.5, avgReturn: 0.20 },
+    actualSummary: { totalTrades: 14, totalReturn: 3.1, avgReturn: 0.22 },
+    gapPercent: 1.4,
+    planList: [],
+    actualList: [],
   },
   YEAR: {
     period: 'YEAR',
-    planReturnPercent: 8.3,
-    actualReturnPercent: 6.1,
-    gap: 2.2,
+    planSummary: { totalTrades: 85, pendingCount: 8, totalReturn: 8.3, avgReturn: 0.10 },
+    actualSummary: { totalTrades: 62, totalReturn: 6.1, avgReturn: 0.10 },
+    gapPercent: 2.2,
+    planList: [],
+    actualList: [],
   },
 }
 
@@ -323,8 +364,9 @@ export const mockApi = {
       stockName: data.stockName || '',
       cycle: data.cycle || 'DAILY',
       status: 'PENDING',
+      isLocked: false,
       validUntil: data.validUntil || '',
-      shares: data.shares || 100,
+      executionQuantity: data.executionQuantity ?? 100,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       conditions: [],
@@ -396,7 +438,7 @@ export const mockApi = {
   },
 
   // Holdings
-  getHoldings: async (refresh?: boolean) => {
+  getHoldings: async (_refresh?: boolean) => {
     await delay(500)
     return mockHoldings
   },

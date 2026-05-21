@@ -1,9 +1,8 @@
 import BaselineCapitalInput from '@/components/views/BaselineCapitalInput'
 import LoadingSkeleton from '@/components/common/LoadingSkeleton'
-import { useSystemConfig, useActualAccount, useHoldings } from '@/hooks'
+import { useActualAccount, useHoldings } from '@/hooks'
 
 export default function Settings() {
-  const { data: config, isLoading: configLoading } = useSystemConfig()
   const { data: actualAccount, isLoading: accountLoading } = useActualAccount()
   const { data: holdings, isLoading: holdingsLoading } = useHoldings()
 

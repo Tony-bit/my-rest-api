@@ -27,7 +27,6 @@ export default function Dashboard() {
     }))
   }, [dashboard?.trend])
 
-  const baseline = dashboard?.baselineCapital ?? 0
   const planReturnPct = kpis?.planReturnPercent ?? 0
   const actualReturnPct = kpis?.actualReturnPercent ?? 0
   const gap = kpis?.holdingGap ?? 0
@@ -90,7 +89,7 @@ export default function Dashboard() {
           </div>
         </div>
         {!dashboardLoading && trendData.length > 0 ? (
-          <TrendChart data={trendData} baselineCapital={baseline} />
+          <TrendChart data={trendData} />
         ) : (
           <div className="h-64 flex items-center justify-center text-gray-600 text-sm">
             {dashboardLoading ? '加载中…' : '暂无走势数据'}

@@ -10,10 +10,9 @@ interface TrendPoint {
 
 interface Props {
   data: TrendPoint[]
-  baselineCapital: number
 }
 
-export default function TrendChart({ data, baselineCapital }: Props) {
+export default function TrendChart({ data }: Props) {
   const chartRef = useRef<HTMLDivElement>(null)
   const instanceRef = useRef<ECharts | null>(null)
 

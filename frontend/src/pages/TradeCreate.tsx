@@ -25,7 +25,7 @@ export default function TradeCreate() {
       return
     }
     try {
-      const result = await createMutation.mutateAsync({
+      await createMutation.mutateAsync({
         ...form,
         price: parseFloat(form.price),
         quantity: parseInt(form.quantity),

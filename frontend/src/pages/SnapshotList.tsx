@@ -9,7 +9,7 @@ export default function SnapshotList() {
   const [planIdFilter, setPlanIdFilter] = useState('')
 
   const { data: snapshots, isLoading, error } = useSnapshots({
-    snapshotDate: dateFilter || undefined,
+    date: dateFilter || undefined,
     planId: planIdFilter ? parseInt(planIdFilter) : undefined,
   })
 
@@ -89,7 +89,7 @@ export default function SnapshotList() {
                       </span>
                     </td>
                     <td className="px-4 py-3 text-gray-400">
-                      {s.actualReturnPercent !== 0 ? (
+                      {s.actualReturnPercent != null && s.actualReturnPercent !== 0 ? (
                         <span className={s.actualReturnPercent >= 0 ? 'text-green-400' : 'text-red-400'}>
                           {s.actualReturnPercent >= 0 ? '+' : ''}{s.actualReturnPercent.toFixed(2)}%
                         </span>
