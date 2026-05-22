@@ -139,15 +139,15 @@ public class DashboardService {
         List<DashboardDTO.ExecutionLogItem> log = new ArrayList<>();
 
         for (PlanExecution ex : executions) {
+            String direction = ex.getPlan().getPlanType() == PlanType.BUY ? "买入" : "卖出";
             log.add(DashboardDTO.ExecutionLogItem.builder()
                     .date(ex.getTradeDate())
                     .type("PLAN")
                     .content(String.format("预案 %s 触发 %s @ %s",
                             ex.getPlan() != null ? ex.getPlan().getName() : "N/A",
-                            ex.getDirection(),
+                            direction,
                             ex.getTriggerPrice() != null ? ex.getTriggerPrice().toString() : "N/A"))
                     .planStatus(ex.getPlan() != null ? ex.getPlan().getStatus() : null)
-                    .direction(ex.getDirection())
                     .build());
         }
 

@@ -2,6 +2,9 @@ server:
   port: 8080
 
 spring:
+  mvc:
+    pathmatch:
+      matching-strategy: ant_path_matcher
   application:
     name: my-rest-api
 
@@ -30,6 +33,11 @@ spring:
       write-dates-as-timestamps: false
     date-format: yyyy-MM-dd HH:mm:ss
     default-property-inclusion: non_null
+
+logging:
+  level:
+    com.example.myapi.service.TushareService: INFO
+    root: INFO
 
 tushare:
   token: ${TUSHARE_TOKEN:e054d234d3479bb5c6e7e1146c361d511a7cd9c8bb6de49d37b385c0}

@@ -5,7 +5,7 @@ import LoadingSkeleton from '@/components/common/LoadingSkeleton'
 import EmptyState from '@/components/common/EmptyState'
 import ErrorAlert from '@/components/common/ErrorAlert'
 import { usePlans, useDeletePlan, useTriggerPlan, useBatchTrigger } from '@/hooks'
-import type { PlanStatus } from '@/types'
+import type { PlanStatus, PlanType } from '@/types'
 
 const STATUS_OPTIONS: { value: string; label: string }[] = [
   { value: '', label: '全部' },
@@ -14,6 +14,18 @@ const STATUS_OPTIONS: { value: string; label: string }[] = [
   { value: 'CLOSED', label: '已完成' },
   { value: 'EXPIRED', label: '已过期' },
 ]
+
+const PLAN_TYPE_STYLES: Record<PlanType, { label: string; color: string }> = {
+  BUY: { label: '买入', color: 'bg-blue-900 text-blue-300 border-blue-700' },
+  SELL: { label: '卖出', color: 'bg-orange-900 text-orange-300 border-orange-700' },
+}
+
+const TRIGGER_STATUS_LABELS: Record<string, string> = {
+  data_unavailable: '数据暂不可用',
+  success: '触发成功',
+  skipped: '已跳过',
+  pending: '待触发',
+}
 
 export default function PlanList() {
   const [statusFilter, setStatusFilter] = useState('')
@@ -41,7 +53,8 @@ export default function PlanList() {
     if (!confirm('确认触发该预案？')) return
     try {
       const result = await triggerMutation.mutateAsync({ id, targetDate: undefined })
-      alert(`${result.stockName}: ${result.status}`)
+      const statusLabel = TRIGGER_STATUS_LABELS[result.status] ?? result.status
+      alert(`${result.stockName}: ${statusLabel}`)
     } catch (e) {
       alert('触发失败: ' + (e as Error).message)
     }
@@ -125,6 +138,7 @@ export default function PlanList() {
             <thead>
               <tr className="text-left text-xs text-gray-500 border-b border-gray-800">
                 <th className="px-4 py-3 font-medium">名称</th>
+                <th className="px-4 py-3 font-medium">类型</th>
                 <th className="px-4 py-3 font-medium">股票</th>
                 <th className="px-4 py-3 font-medium">触发日期</th>
                 <th className="px-4 py-3 font-medium">周期</th>
@@ -137,7 +151,7 @@ export default function PlanList() {
               {isLoading ? (
                 Array.from({ length: 3 }).map((_, i) => (
                   <tr key={i} className="border-t border-gray-800">
-                    {Array.from({ length: 6 }).map((_, j) => (
+                    {Array.from({ length: 7 }).map((_, j) => (
                       <td key={j} className="px-4 py-3">
                         <LoadingSkeleton className="h-4 w-24" />
                       </td>
@@ -146,7 +160,7 @@ export default function PlanList() {
                 ))
               ) : !plans?.length ? (
                 <tr>
-                  <td colSpan={6}>
+                  <td colSpan={8}>
                     <EmptyState message="暂无预案记录" />
                   </td>
                 </tr>
@@ -157,6 +171,11 @@ export default function PlanList() {
                     className="border-t border-gray-800 hover:bg-gray-800/50 transition-colors"
                   >
                     <td className="px-4 py-3 text-gray-200">{plan.name}</td>
+                    <td className="px-4 py-3">
+                      <span className={`px-2 py-0.5 text-xs rounded border ${PLAN_TYPE_STYLES[plan.planType as PlanType]?.color || 'bg-gray-800 text-gray-400'}`}>
+                        {plan.planType === 'BUY' ? '买入' : '卖出'}
+                      </span>
+                    </td>
                     <td className="px-4 py-3 text-gray-400">
                       {plan.stockCode} {plan.stockName}
                     </td>
@@ -191,7 +210,15 @@ export default function PlanList() {
                             编辑
                           </Link>
                         )}
-                        {plan.status === 'EXPIRED' && (
+                        {plan.planType === 'BUY' && plan.status === 'HOLDING' && (
+                          <Link
+                            to={`/plans/sell/new?buyPlanId=${plan.id}`}
+                            className="text-xs text-orange-400 hover:text-orange-300"
+                          >
+                            建卖出预案
+                          </Link>
+                        )}
+                        {(plan.status === 'EXPIRED' || plan.status === 'CLOSED') && (
                           <button
                             onClick={() => handleDelete(plan.id)}
                             className="text-xs text-red-400 hover:text-red-300"

@@ -4,10 +4,13 @@ import LoadingSkeleton from '@/components/common/LoadingSkeleton'
 import EmptyState from '@/components/common/EmptyState'
 import ErrorAlert from '@/components/common/ErrorAlert'
 import { usePlan, usePlanExecutions, useDeletePlan } from '@/hooks'
-import type { PlanStatus } from '@/types'
+import type { PlanStatus, PlanType } from '@/types'
 
-const directionLabel: Record<string, string> = { BUY: '买入', SELL: '卖出' }
-const cycleLabel: Record<string, string> = { DAILY: '日度', WEEKLY: '周度', MONTHLY: '月度' }
+const CYCLE_LABEL: Record<string, string> = { DAILY: '日度', WEEKLY: '周度', MONTHLY: '月度' }
+const PLAN_TYPE_STYLES: Record<PlanType, { label: string; color: string }> = {
+  BUY: { label: '买入', color: 'bg-blue-900 text-blue-300 border-blue-700' },
+  SELL: { label: '卖出', color: 'bg-orange-900 text-orange-300 border-orange-700' },
+}
 
 export default function PlanDetail() {
   const { id } = useParams<{ id: string }>()
@@ -45,7 +48,7 @@ export default function PlanDetail() {
     )
   }
 
-  const holdingExecution = executions?.find((e) => e.direction === 'BUY')
+  const planTypeStyle = PLAN_TYPE_STYLES[plan.planType as PlanType] || { label: '买入', color: 'bg-gray-800 text-gray-400' }
 
   return (
     <div className="p-6 space-y-4 max-w-2xl">
@@ -55,6 +58,14 @@ export default function PlanDetail() {
           <h2 className="text-base font-medium text-gray-200">预案详情</h2>
         </div>
         <div className="flex items-center gap-2">
+          {plan.planType === 'BUY' && plan.status === 'HOLDING' && (
+            <Link
+              to={`/plans/sell/new?buyPlanId=${plan.id}`}
+              className="px-3 py-1.5 text-sm bg-orange-600 hover:bg-orange-500 text-white rounded transition-colors"
+            >
+              + 建卖出预案
+            </Link>
+          )}
           {plan.status === 'PENDING' && (
             <Link
               to={`/plans/${plan.id}/edit`}
@@ -63,7 +74,7 @@ export default function PlanDetail() {
               编辑
             </Link>
           )}
-          {plan.status === 'EXPIRED' && (
+          {(plan.status === 'EXPIRED' || plan.status === 'CLOSED') && (
             <button
               onClick={handleDelete}
               className="px-3 py-1.5 text-sm bg-red-950 hover:bg-red-900 text-red-400 rounded border border-red-900 transition-colors"
@@ -76,44 +87,56 @@ export default function PlanDetail() {
 
       {/* 基本信息 */}
       <section className="bg-gray-900 border border-gray-800 rounded-lg p-5 space-y-2">
-        <h3 className="text-sm font-medium text-gray-300 mb-3">基本信息</h3>
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-sm font-medium text-gray-300">基本信息</h3>
+          <span className={`px-2 py-0.5 text-xs rounded border ${planTypeStyle.color}`}>
+            {planTypeStyle.label}预案
+          </span>
+        </div>
         <DetailRow label="预案名称" value={plan.name} />
         <DetailRow label="股票" value={`${plan.stockCode} ${plan.stockName}`} />
-        <DetailRow label="周期" value={cycleLabel[plan.cycle] ?? plan.cycle} />
-        <DetailRow label="有效期至" value={plan.validUntil} />
-        <DetailRow label="股数" value={`${plan.executionQuantity} 股`} />
+        <DetailRow label="周期" value={CYCLE_LABEL[plan.cycle] ?? plan.cycle} />
+        <DetailRow label="有效期至" value={plan.validUntil || '-'} />
+        {plan.planType === 'BUY' && (
+          <DetailRow label="买入股数" value={`${plan.executionQuantity} 股`} />
+        )}
+        {plan.planType === 'SELL' && (
+          <DetailRow label="关联买入预案" value={plan.tradePlanId ? `#${plan.tradePlanId}` : '-'} />
+        )}
         <DetailRow label="创建时间" value={plan.createdAt.slice(0, 16).replace('T', ' ')} />
         <div className="flex justify-between items-center py-1">
           <span className="text-xs text-gray-500">状态</span>
           <StatusBadge status={plan.status as PlanStatus} />
         </div>
 
-        {/* HOLDING 状态显示持仓信息 */}
-        {plan.status === 'HOLDING' && holdingExecution && (
+        {/* HOLDING 状态显示持仓信息 (BUY plan only) */}
+        {plan.status === 'HOLDING' && plan.planType === 'BUY' && (
           <div className="mt-3 pt-3 border-t border-gray-800 space-y-1">
             <p className="text-xs text-gray-500 mb-2">当前持股</p>
-            <DetailRow label="买入触发价" value={`¥${holdingExecution.triggerPrice.toFixed(2)}`} />
-            <DetailRow label="持股天数" value={`${Math.floor((Date.now() - new Date(holdingExecution.tradeDate).getTime()) / 86400000)} 天`} />
+            <DetailRow label="建仓日期" value={plan.triggerDate || '-'} />
+            <DetailRow label="持股数量" value={`${plan.executionQuantity} 股`} />
           </div>
         )}
       </section>
 
       {/* 触发条件 */}
       <section className="bg-gray-900 border border-gray-800 rounded-lg p-5 space-y-2">
-        <h3 className="text-sm font-medium text-gray-300 mb-3">触发条件</h3>
-        {plan.conditions.length === 0 ? (
+        <h3 className="text-sm font-medium text-gray-300 mb-3">
+          {plan.planType === 'BUY' ? '买入条件' : '卖出条件'}
+        </h3>
+        {!plan.condition ? (
           <p className="text-sm text-gray-600">暂无触发条件</p>
         ) : (
-          plan.conditions.map((c) => (
-            <div key={c.id} className="flex items-center gap-2 text-sm">
-              <span className={`px-2 py-0.5 text-xs rounded ${c.direction === 'BUY' ? 'bg-green-950 text-green-400' : 'bg-red-950 text-red-400'}`}>
-                {directionLabel[c.direction]}
-              </span>
-              <span className="text-gray-300">
-                {c.conditionType === 'MA' ? `MA${c.maPeriod} 触碰（容差 ±0.3%）` : `固定价格 ¥${c.targetPrice?.toFixed(2)}`}
-              </span>
-            </div>
-          ))
+          <div className="flex items-center gap-2 text-sm">
+            <span className={`px-2 py-0.5 text-xs rounded ${plan.planType === 'BUY' ? 'bg-green-950 text-green-400' : 'bg-red-950 text-red-400'}`}>
+              {plan.planType === 'BUY' ? '买入' : '卖出'}
+            </span>
+            <span className="text-gray-300">
+              {plan.condition.conditionType === 'MA'
+                ? `MA${plan.condition.maPeriod} 触碰（容差 ±0.3%）`
+                : `固定价格 ¥${plan.condition.targetPrice?.toFixed(2)}`}
+            </span>
+          </div>
         )}
       </section>
 
@@ -127,7 +150,7 @@ export default function PlanDetail() {
             <thead>
               <tr className="text-left text-xs text-gray-500 border-b border-gray-800">
                 <th className="pb-2">日期</th>
-                <th className="pb-2">方向</th>
+                <th className="pb-2">类型</th>
                 <th className="pb-2">触发价格</th>
                 <th className="pb-2">数量</th>
               </tr>
@@ -137,12 +160,12 @@ export default function PlanDetail() {
                 <tr key={e.id} className="border-t border-gray-800">
                   <td className="py-2 text-gray-400">{e.tradeDate}</td>
                   <td className="py-2">
-                    <span className={`px-2 py-0.5 text-xs rounded ${e.direction === 'BUY' ? 'bg-green-950 text-green-400' : 'bg-red-950 text-red-400'}`}>
-                      {directionLabel[e.direction]}
+                    <span className={`px-2 py-0.5 text-xs rounded ${plan.planType === 'BUY' ? 'bg-green-950 text-green-400' : 'bg-red-950 text-red-400'}`}>
+                      {plan.planType === 'BUY' ? '买入' : '卖出'}
                     </span>
                   </td>
                   <td className="py-2 text-gray-300">¥{e.triggerPrice.toFixed(2)}</td>
-                  <td className="py-2 text-gray-400">{e.quantity}</td>
+                  <td className="py-2 text-gray-400">{plan.executionQuantity}</td>
                 </tr>
               ))}
             </tbody>

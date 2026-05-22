@@ -3,7 +3,7 @@ package com.example.myapi.service;
 import com.example.myapi.config.TushareConfig;
 import com.example.myapi.entity.ConditionType;
 import com.example.myapi.entity.PlanCondition;
-import com.example.myapi.entity.TradeDirection;
+import com.example.myapi.entity.PlanType;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
@@ -27,14 +27,38 @@ public class TushareService {
     private final TushareConfig tushareConfig;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
+    /**
+     * 标准化股票代码格式，转换为 Tushare 所需格式
+     * 规则：6开头加.SH，3/0开头加.SZ，已有后缀的不处理
+     */
+    public String normalizeStockCode(String stockCode) {
+        if (stockCode == null || stockCode.isBlank()) {
+            return stockCode;
+        }
+        // 已有后缀的直接返回
+        if (stockCode.contains(".")) {
+            return stockCode;
+        }
+        // 6 开头：上海主板
+        if (stockCode.startsWith("6")) {
+            return stockCode + ".SH";
+        }
+        // 3 或 0 开头：深圳
+        if (stockCode.startsWith("3") || stockCode.startsWith("0")) {
+            return stockCode + ".SZ";
+        }
+        return stockCode;
+    }
+
     public Optional<KLineData> getDailyKLine(String stockCode, LocalDate date) {
         return getDailyKLine(stockCode, date, false);
     }
 
     public Optional<KLineData> getDailyKLine(String stockCode, LocalDate date, boolean usePreFQ) {
         try {
+            String normalizedCode = normalizeStockCode(stockCode);
             Map<String, Object> params = new LinkedHashMap<>();
-            params.put("ts_code", stockCode);
+            params.put("ts_code", normalizedCode);
             params.put("trade_date", date.toString().replace("-", ""));
             if (usePreFQ) {
                 params.put("fq", "pre");
@@ -53,8 +77,9 @@ public class TushareService {
 
     public BigDecimal calculateMA(String stockCode, int period, LocalDate date) {
         try {
+            String normalizedCode = normalizeStockCode(stockCode);
             Map<String, Object> params = new LinkedHashMap<>();
-            params.put("ts_code", stockCode);
+            params.put("ts_code", normalizedCode);
             params.put("trade_date", date.toString().replace("-", ""));
             params.put("fq", "pre");
 
@@ -97,18 +122,16 @@ public class TushareService {
 
     private static final BigDecimal TOUCH_THRESHOLD = new BigDecimal("0.003"); // 0.3%
 
-    public boolean evaluateCondition(PlanCondition condition, KLineData kData, BigDecimal maValue) {
+    public boolean evaluateCondition(PlanCondition condition, PlanType planType, KLineData kData, BigDecimal maValue) {
         ConditionType type = condition.getConditionType();
-        TradeDirection dir = condition.getDirection();
         BigDecimal close = kData.close;
 
         if (type == ConditionType.PRICE) {
             BigDecimal target = condition.getTargetPrice();
-            if (dir == TradeDirection.BUY) return close.compareTo(target) >= 0;
-            if (dir == TradeDirection.SELL) return close.compareTo(target) <= 0;
+            if (planType == PlanType.BUY) return close.compareTo(target) >= 0;
+            if (planType == PlanType.SELL) return close.compareTo(target) <= 0;
         } else if (type == ConditionType.MA) {
             if (maValue == null) return false;
-            // 触碰型语义：|close - MA| / close <= 0.3%，买入卖出相同
             BigDecimal diff = close.subtract(maValue).abs();
             BigDecimal ratio = diff.divide(close, 6, RoundingMode.HALF_UP);
             return ratio.compareTo(TOUCH_THRESHOLD) <= 0;
@@ -170,6 +193,7 @@ public class TushareService {
         body.put("fields", "");
 
         String json = objectMapper.writeValueAsString(body);
+        log.info("Tushare request: api={}, params={}", apiName, params);
 
         HttpClient client = HttpClient.newHttpClient();
         HttpRequest request = HttpRequest.newBuilder()
@@ -180,6 +204,8 @@ public class TushareService {
                 .build();
 
         HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+        log.info("Tushare response: api={}, status={}, body={}", apiName, response.statusCode(), response.body());
+
         if (response.statusCode() != 200) {
             log.error("Tushare API error: status={} body={}", response.statusCode(), response.body());
             return null;

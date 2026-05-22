@@ -33,12 +33,14 @@ public class PlanConditionService {
         if (plan.getStatus() != PlanStatus.PENDING) {
             throw new BusinessException("只有 PENDING 状态的预案可以添加条件", 409);
         }
+        if (!plan.getConditions().isEmpty()) {
+            throw new BusinessException("每个预案只能有一个条件", 409);
+        }
         validate(request);
 
         PlanCondition cond = PlanCondition.builder()
                 .plan(plan)
                 .conditionType(request.getConditionType())
-                .direction(request.getDirection())
                 .maPeriod(request.getMaPeriod())
                 .targetPrice(request.getTargetPrice())
                 .build();
@@ -72,10 +74,8 @@ public class PlanConditionService {
         }
 
         if (request.getConditionType() != null) cond.setConditionType(request.getConditionType());
-        if (request.getDirection() != null) cond.setDirection(request.getDirection());
         if (request.getMaPeriod() != null) cond.setMaPeriod(request.getMaPeriod());
         if (request.getTargetPrice() != null) cond.setTargetPrice(request.getTargetPrice());
-        if (request.getIsActive() != null) cond.setIsActive(request.getIsActive());
 
         if (cond.getConditionType() == ConditionType.MA && cond.getMaPeriod() != null
                 && !VALID_MA_PERIODS.contains(cond.getMaPeriod())) {

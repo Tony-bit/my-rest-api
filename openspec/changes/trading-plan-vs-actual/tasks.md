@@ -257,6 +257,68 @@
   - 实盘侧总浮盈同上，基于 ActualAccount.cashBalance + Σ持仓市值
 - [ ] 14.12.4 知行差公式不变：`gap = planReturnPct - actualReturnPct`（两端均已改用 baselineCapital）
 
+## 15. 预案触发条件编辑（spec: plan-condition-edit）
+
+**User Story**: 作为用户，我希望在预案触发前（状态为 PENDING 或 HOLDING）能够修改触发条件（MA 周期或目标价格），以便根据市场变化灵活调整策略。
+
+### 15.1 后端支持
+
+- [x] 15.1.1 修改 `PlanDTO.UpdateRequest` 新增 `condition` 字段（类型 `ConditionDTO.CreateRequest`）
+- [x] 15.1.2 修改 `PlanService.update()` 放开状态校验
+  - 允许 PENDING 和 HOLDING 状态的预案编辑条件
+  - 仅当状态为 CLOSED 或 EXPIRED 时拒绝编辑
+- [x] 15.1.3 实现条件 Upsert 逻辑
+  - 预案已有条件 → 更新已有 `PlanCondition` 记录
+  - 预案无条件 → 创建新的 `PlanCondition` 记录
+  - 条件验证规则不变（MA 周期 ∈ {5,10,20,60,120,250}，目标价格 > 0）
+- [x] 15.1.4 更新单元测试 `PlanServiceTest`
+  - 测试 PENDING 状态可编辑条件
+  - 测试 HOLDING 状态可编辑条件
+  - 测试 CLOSED 状态不可编辑（返回 409）
+  - 测试 EXPIRED 状态不可编辑（返回 409）
+  - 测试 MA → PRICE 类型切换
+  - 测试 PRICE → MA 类型切换
+
+### 15.2 前端支持
+
+- [x] 15.2.1 修改 `UpdatePlanRequest` 类型新增 `condition` 字段
+- [x] 15.2.2 修改 `PlanEdit.tsx` 添加条件编辑区域
+  - 与 `PlanCreate.tsx` 使用相同的条件表单组件
+  - 编辑页加载时显示当前条件值（从 `GET /plans/:id` 响应中获取）
+  - 保存时将条件一并提交
+- [x] 15.2.3 状态提示
+  - PENDING/HOLDING 状态：显示可编辑条件的提示
+  - CLOSED/EXPIRED 状态：隐藏条件编辑区域或显示只读
+
+### 15.3 验收标准
+
+```
+场景 1: PENDING 状态编辑 MA 周期
+  前提: 预案 A 状态 PENDING，条件为 MA20
+  操作: 编辑预案，将 MA20 改为 MA10
+  期望: 保存成功，条件更新为 MA10
+
+场景 2: HOLDING 状态编辑目标价格
+  前提: 预案 B 状态 HOLDING，条件为 PRICE ¥1800
+  操作: 编辑预案，将目标价改为 ¥2000
+  期望: 保存成功，条件更新为 ¥2000
+
+场景 3: HOLDING 状态切换条件类型
+  前提: 预案 C 状态 HOLDING，条件为 MA10
+  操作: 编辑预案，将类型改为 PRICE，目标价 ¥1900
+  期望: 保存成功，条件类型切换为 PRICE
+
+场景 4: CLOSED 状态不可编辑
+  前提: 预案 D 状态 CLOSED
+  操作: 尝试编辑条件
+  期望: 前端隐藏编辑入口 / 后端返回 409
+
+场景 5: EXPIRED 状态不可编辑
+  前提: 预案 E 状态 EXPIRED
+  操作: 尝试编辑条件
+  期望: 前端隐藏编辑入口 / 后端返回 409
+```
+
 ---
 
 ## 任务依赖关系图
@@ -285,4 +347,8 @@
 14.12 收益率基准切换 → 依赖 14.1 + 14.4 + 14.5 + 14.11
 
 8.10 幂等保护 独立于 14.x，可在 Phase 3 定时任务阶段并行完成
+
+买卖分离变更独立于 14.x，详见新 change: `buy-sell-separation`
+
+15. 预案条件编辑 独立于 14.x，可独立完成
 ```

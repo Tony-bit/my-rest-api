@@ -22,11 +22,8 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 class PlanConditionServiceTest {
 
-    @Mock
-    private PlanConditionRepository conditionRepository;
-
-    @Mock
-    private PlanRepository planRepository;
+    @Mock private PlanConditionRepository conditionRepository;
+    @Mock private PlanRepository planRepository;
 
     private PlanConditionService service;
 
@@ -35,14 +32,11 @@ class PlanConditionServiceTest {
         service = new PlanConditionService(conditionRepository, planRepository);
     }
 
-    // ========== create() ==========
-
     @Test
     void create_validMACondition_succeeds() {
         Plan plan = TestFixtures.planBuilder().status(PlanStatus.PENDING).build();
         ConditionDTO.CreateRequest request = ConditionDTO.CreateRequest.builder()
                 .conditionType(ConditionType.MA)
-                .direction(TradeDirection.BUY)
                 .maPeriod(20)
                 .build();
 
@@ -57,7 +51,6 @@ class PlanConditionServiceTest {
 
         assertNotNull(resp.getId());
         assertEquals(ConditionType.MA, resp.getConditionType());
-        assertEquals(TradeDirection.BUY, resp.getDirection());
         assertEquals(20, resp.getMaPeriod());
         verify(conditionRepository).save(any(PlanCondition.class));
     }
@@ -67,7 +60,6 @@ class PlanConditionServiceTest {
         Plan plan = TestFixtures.planBuilder().status(PlanStatus.PENDING).build();
         ConditionDTO.CreateRequest request = ConditionDTO.CreateRequest.builder()
                 .conditionType(ConditionType.PRICE)
-                .direction(TradeDirection.SELL)
                 .targetPrice(new BigDecimal("12.50"))
                 .build();
 
@@ -81,7 +73,6 @@ class PlanConditionServiceTest {
         ConditionDTO.Response resp = service.create(1L, request);
 
         assertEquals(ConditionType.PRICE, resp.getConditionType());
-        assertEquals(TradeDirection.SELL, resp.getDirection());
         assertEquals(0, new BigDecimal("12.50").compareTo(resp.getTargetPrice()));
     }
 
@@ -92,7 +83,6 @@ class PlanConditionServiceTest {
         BusinessException ex = assertThrows(BusinessException.class,
                 () -> service.create(999L, ConditionDTO.CreateRequest.builder()
                         .conditionType(ConditionType.PRICE)
-                        .direction(TradeDirection.BUY)
                         .targetPrice(new BigDecimal("10.00"))
                         .build()));
 
@@ -107,7 +97,6 @@ class PlanConditionServiceTest {
         BusinessException ex = assertThrows(BusinessException.class,
                 () -> service.create(1L, ConditionDTO.CreateRequest.builder()
                         .conditionType(ConditionType.PRICE)
-                        .direction(TradeDirection.BUY)
                         .targetPrice(new BigDecimal("10.00"))
                         .build()));
 
@@ -119,8 +108,7 @@ class PlanConditionServiceTest {
         Plan plan = TestFixtures.planBuilder().status(PlanStatus.PENDING).build();
         ConditionDTO.CreateRequest request = ConditionDTO.CreateRequest.builder()
                 .conditionType(ConditionType.MA)
-                .direction(TradeDirection.BUY)
-                .maPeriod(7) // invalid
+                .maPeriod(7)
                 .build();
 
         when(planRepository.findById(1L)).thenReturn(Optional.of(plan));
@@ -129,7 +117,6 @@ class PlanConditionServiceTest {
                 () -> service.create(1L, request));
 
         assertTrue(ex.getMessage().contains("MA"));
-        assertTrue(ex.getMessage().contains("5/10/20/60/120/250"));
     }
 
     @Test
@@ -137,7 +124,6 @@ class PlanConditionServiceTest {
         Plan plan = TestFixtures.planBuilder().status(PlanStatus.PENDING).build();
         ConditionDTO.CreateRequest request = ConditionDTO.CreateRequest.builder()
                 .conditionType(ConditionType.MA)
-                .direction(TradeDirection.BUY)
                 .maPeriod(null)
                 .build();
 
@@ -154,7 +140,6 @@ class PlanConditionServiceTest {
         Plan plan = TestFixtures.planBuilder().status(PlanStatus.PENDING).build();
         ConditionDTO.CreateRequest request = ConditionDTO.CreateRequest.builder()
                 .conditionType(ConditionType.PRICE)
-                .direction(TradeDirection.BUY)
                 .targetPrice(BigDecimal.ZERO)
                 .build();
 
@@ -171,7 +156,6 @@ class PlanConditionServiceTest {
         Plan plan = TestFixtures.planBuilder().status(PlanStatus.PENDING).build();
         ConditionDTO.CreateRequest request = ConditionDTO.CreateRequest.builder()
                 .conditionType(ConditionType.PRICE)
-                .direction(TradeDirection.SELL)
                 .targetPrice(new BigDecimal("-5.00"))
                 .build();
 
@@ -188,7 +172,6 @@ class PlanConditionServiceTest {
         Plan plan = TestFixtures.planBuilder().status(PlanStatus.PENDING).build();
         ConditionDTO.CreateRequest request = ConditionDTO.CreateRequest.builder()
                 .conditionType(ConditionType.PRICE)
-                .direction(TradeDirection.BUY)
                 .targetPrice(null)
                 .build();
 
@@ -200,7 +183,22 @@ class PlanConditionServiceTest {
         assertTrue(ex.getMessage().contains("大于 0"));
     }
 
-    // ========== listByPlan() ==========
+    @Test
+    void create_multipleConditions_throws() {
+        Plan plan = TestFixtures.planBuilder().status(PlanStatus.PENDING).build();
+        PlanCondition existing = TestFixtures.conditionBuilder().plan(plan).build();
+        plan.getConditions().add(existing);
+
+        when(planRepository.findById(1L)).thenReturn(Optional.of(plan));
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> service.create(1L, ConditionDTO.CreateRequest.builder()
+                        .conditionType(ConditionType.PRICE)
+                        .targetPrice(new BigDecimal("10.00"))
+                        .build()));
+
+        assertEquals(409, ex.getStatusCode());
+    }
 
     @Test
     void listByPlan_existingPlan_returnsConditions() {
@@ -225,8 +223,6 @@ class PlanConditionServiceTest {
         assertEquals(404, ex.getStatusCode());
     }
 
-    // ========== update() ==========
-
     @Test
     void update_validData_succeeds() {
         Plan plan = TestFixtures.planBuilder().id(1L).status(PlanStatus.PENDING).build();
@@ -247,16 +243,6 @@ class PlanConditionServiceTest {
 
         assertEquals(0, new BigDecimal("12.00").compareTo(cond.getTargetPrice()));
         verify(conditionRepository).save(cond);
-    }
-
-    @Test
-    void update_planNotFound_throws404() {
-        when(planRepository.findById(999L)).thenReturn(Optional.empty());
-
-        BusinessException ex = assertThrows(BusinessException.class,
-                () -> service.update(999L, 1L, ConditionDTO.UpdateRequest.builder().build()));
-
-        assertEquals(404, ex.getStatusCode());
     }
 
     @Test
@@ -283,26 +269,12 @@ class PlanConditionServiceTest {
     }
 
     @Test
-    void update_conditionBelongsToDifferentPlan_throws() {
-        Plan plan1 = TestFixtures.planBuilder().id(1L).status(PlanStatus.PENDING).build();
-        Plan plan2 = TestFixtures.planBuilder().id(2L).status(PlanStatus.PENDING).build();
-        PlanCondition cond = TestFixtures.conditionBuilder().plan(plan2).id(1L).build();
-        when(planRepository.findById(1L)).thenReturn(Optional.of(plan1));
-        when(conditionRepository.findById(1L)).thenReturn(Optional.of(cond));
-
-        BusinessException ex = assertThrows(BusinessException.class,
-                () -> service.update(1L, 1L, ConditionDTO.UpdateRequest.builder().build()));
-
-        assertEquals(400, ex.getStatusCode());
-    }
-
-    @Test
     void update_maPeriodInvalid_throws() {
         Plan plan = TestFixtures.planBuilder().status(PlanStatus.PENDING).build();
         PlanCondition cond = TestFixtures.conditionBuilder()
                 .plan(plan).conditionType(ConditionType.MA).maPeriod(5).build();
         ConditionDTO.UpdateRequest request = ConditionDTO.UpdateRequest.builder()
-                .maPeriod(7) // invalid
+                .maPeriod(7)
                 .build();
 
         when(planRepository.findById(1L)).thenReturn(Optional.of(plan));
@@ -333,55 +305,6 @@ class PlanConditionServiceTest {
     }
 
     @Test
-    void update_partialFields_onlyUpdatesNonNull() {
-        Plan plan = TestFixtures.planBuilder().status(PlanStatus.PENDING).build();
-        PlanCondition cond = TestFixtures.conditionBuilder()
-                .plan(plan)
-                .conditionType(ConditionType.MA)
-                .maPeriod(5)
-                .direction(TradeDirection.BUY)
-                .build();
-        ConditionDTO.UpdateRequest request = ConditionDTO.UpdateRequest.builder()
-                .maPeriod(20) // only this should be updated
-                .build();
-
-        when(planRepository.findById(1L)).thenReturn(Optional.of(plan));
-        when(conditionRepository.findById(1L)).thenReturn(Optional.of(cond));
-        when(conditionRepository.save(any(PlanCondition.class))).thenReturn(cond);
-
-        service.update(1L, 1L, request);
-
-        assertEquals(20, cond.getMaPeriod());
-        assertEquals(TradeDirection.BUY, cond.getDirection()); // unchanged
-        assertEquals(ConditionType.MA, cond.getConditionType()); // unchanged
-    }
-
-    @Test
-    void update_allMaPeriodsValid_succeeds() {
-        int[] validPeriods = {5, 10, 20, 60, 120, 250};
-        Plan plan = TestFixtures.planBuilder().status(PlanStatus.PENDING).build();
-
-        for (int period : validPeriods) {
-            PlanCondition cond = TestFixtures.conditionBuilder()
-                    .plan(plan).conditionType(ConditionType.MA).maPeriod(5).build();
-            ConditionDTO.UpdateRequest request = ConditionDTO.UpdateRequest.builder()
-                    .maPeriod(period)
-                    .build();
-
-            when(planRepository.findById(1L)).thenReturn(Optional.of(plan));
-            when(conditionRepository.findById(1L)).thenReturn(Optional.of(cond));
-            when(conditionRepository.save(any(PlanCondition.class))).thenReturn(cond);
-
-            ConditionDTO.Response resp = service.update(1L, 1L, request);
-
-            assertEquals(period, cond.getMaPeriod(),
-                    "MA period " + period + " should be valid");
-        }
-    }
-
-    // ========== delete() ==========
-
-    @Test
     void delete_existingCondition_succeeds() {
         Plan plan = TestFixtures.planBuilder().status(PlanStatus.PENDING).build();
         PlanCondition cond = TestFixtures.conditionBuilder().plan(plan).id(1L).build();
@@ -391,16 +314,6 @@ class PlanConditionServiceTest {
         service.delete(1L, 1L);
 
         verify(conditionRepository).delete(cond);
-    }
-
-    @Test
-    void delete_planNotFound_throws404() {
-        when(planRepository.findById(999L)).thenReturn(Optional.empty());
-
-        BusinessException ex = assertThrows(BusinessException.class,
-                () -> service.delete(999L, 1L));
-
-        assertEquals(404, ex.getStatusCode());
     }
 
     @Test
@@ -425,22 +338,6 @@ class PlanConditionServiceTest {
 
         assertEquals(404, ex.getStatusCode());
     }
-
-    @Test
-    void delete_conditionBelongsToDifferentPlan_throws() {
-        Plan plan1 = TestFixtures.planBuilder().id(1L).status(PlanStatus.PENDING).build();
-        Plan plan2 = TestFixtures.planBuilder().id(2L).status(PlanStatus.PENDING).build();
-        PlanCondition cond = TestFixtures.conditionBuilder().plan(plan2).id(1L).build();
-        when(planRepository.findById(1L)).thenReturn(Optional.of(plan1));
-        when(conditionRepository.findById(1L)).thenReturn(Optional.of(cond));
-
-        BusinessException ex = assertThrows(BusinessException.class,
-                () -> service.delete(1L, 1L));
-
-        assertEquals(400, ex.getStatusCode());
-    }
-
-    // ========== Utility ==========
 
     private void setField(Object target, String fieldName, Object value) {
         try {

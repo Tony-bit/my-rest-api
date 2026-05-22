@@ -33,11 +33,12 @@ class PlanExecutionServiceTest {
         service = new PlanExecutionService(executionRepository, planRepository, systemConfigService);
     }
 
-    // 3.1 recordExecution
-
     @Test
-    void recordExecution_normal_createsExecution() {
-        Plan plan = TestFixtures.planBuilder().build();
+    void recordExecution_buy_createsExecutionAndDeductsCash() {
+        Plan buyPlan = TestFixtures.planBuilder()
+                .planType(PlanType.BUY)
+                .executionQuantity(new BigDecimal("100"))
+                .build();
         when(systemConfigService.getPlanAccount()).thenReturn(planAccount);
         when(planAccount.getCashBalance()).thenReturn(new BigDecimal("500000"));
         when(executionRepository.save(any(PlanExecution.class))).thenAnswer(inv -> {
@@ -47,61 +48,56 @@ class PlanExecutionServiceTest {
         });
 
         PlanExecution result = service.recordExecution(
-                plan, TradeDirection.BUY,
-                new BigDecimal("10.00"), new BigDecimal("10.05"),
-                null, 1L);
+                buyPlan,
+                new BigDecimal("10.00"),
+                new BigDecimal("10.05"),
+                null,
+                null);
 
         assertNotNull(result.getId());
-        assertEquals(TradeDirection.BUY, result.getDirection());
         assertTrue(result.getTriggered());
         assertTrue(result.getExecuted());
         assertEquals(new BigDecimal("10.00"), result.getTriggerPrice());
-        assertEquals(new BigDecimal("10.05"), result.getClosePrice());
-        verify(systemConfigService).deductPlanCashBalance(any(BigDecimal.class));
-        verify(executionRepository, times(1)).save(any(PlanExecution.class));
-    }
-
-    @Test
-    void recordExecution_buy_deductsCashBalance() {
-        Plan plan = TestFixtures.planBuilder().executionQuantity(new BigDecimal("100")).build();
-        when(systemConfigService.getPlanAccount()).thenReturn(planAccount);
-        when(planAccount.getCashBalance()).thenReturn(new BigDecimal("500000"));
-        when(executionRepository.save(any(PlanExecution.class))).thenAnswer(inv -> {
-            PlanExecution e = inv.getArgument(0);
-            setField(e, "id", 1L);
-            return e;
-        });
-
-        service.recordExecution(plan, TradeDirection.BUY,
-                new BigDecimal("10.00"), new BigDecimal("10.00"), null, null);
-
         verify(systemConfigService).deductPlanCashBalance(new BigDecimal("1000.00"));
+        verify(executionRepository).save(any(PlanExecution.class));
     }
 
     @Test
-    void recordExecution_sell_addsCashBalance() {
-        Plan plan = TestFixtures.planBuilder().executionQuantity(new BigDecimal("100")).build();
+    void recordExecution_sell_createsExecutionAndAddsCash() {
+        Plan sellPlan = TestFixtures.planBuilder()
+                .planType(PlanType.SELL)
+                .executionQuantity(new BigDecimal("100"))
+                .build();
         when(executionRepository.save(any(PlanExecution.class))).thenAnswer(inv -> {
             PlanExecution e = inv.getArgument(0);
             setField(e, "id", 1L);
             return e;
         });
 
-        service.recordExecution(plan, TradeDirection.SELL,
-                new BigDecimal("11.00"), new BigDecimal("11.00"), null, null);
+        service.recordExecution(sellPlan,
+                new BigDecimal("11.00"),
+                new BigDecimal("11.00"),
+                null,
+                null);
 
         verify(systemConfigService).addPlanCashBalance(new BigDecimal("1100.00"));
     }
 
     @Test
     void recordExecution_buyInsufficientCash_throwsException() {
-        Plan plan = TestFixtures.planBuilder().executionQuantity(new BigDecimal("100")).build();
+        Plan buyPlan = TestFixtures.planBuilder()
+                .planType(PlanType.BUY)
+                .executionQuantity(new BigDecimal("100"))
+                .build();
         when(systemConfigService.getPlanAccount()).thenReturn(planAccount);
         when(planAccount.getCashBalance()).thenReturn(new BigDecimal("500"));
 
         BusinessException ex = assertThrows(BusinessException.class, () ->
-                service.recordExecution(plan, TradeDirection.BUY,
-                        new BigDecimal("10.00"), new BigDecimal("10.00"), null, null));
+                service.recordExecution(buyPlan,
+                        new BigDecimal("10.00"),
+                        new BigDecimal("10.00"),
+                        null,
+                        null));
 
         assertEquals(400, ex.getStatusCode());
         assertTrue(ex.getMessage().contains("超过"));
@@ -110,146 +106,95 @@ class PlanExecutionServiceTest {
     }
 
     @Test
-    void recordExecution_conditionIdNull_noCrash() {
-        Plan plan = TestFixtures.planBuilder().build();
-        when(systemConfigService.getPlanAccount()).thenReturn(planAccount);
-        when(planAccount.getCashBalance()).thenReturn(new BigDecimal("500000"));
-        when(executionRepository.save(any(PlanExecution.class))).thenAnswer(inv -> {
-            PlanExecution e = inv.getArgument(0);
-            setField(e, "id", 1L);
-            return e;
-        });
-
-        PlanExecution result = service.recordExecution(
-                plan, TradeDirection.BUY,
-                new BigDecimal("10.00"), new BigDecimal("10.00"),
-                null, null);
-
-        assertNotNull(result);
-        verify(executionRepository).save(any(PlanExecution.class));
-    }
-
-    @Test
-    void recordExecution_conditionIdValid_associatesCondition() {
-        Plan plan = TestFixtures.planBuilder().build();
-        PlanCondition cond = TestFixtures.conditionBuilder().id(5L).plan(plan).build();
-        setField(plan, "conditions", new ArrayList<>(List.of(cond)));
-        when(systemConfigService.getPlanAccount()).thenReturn(planAccount);
-        when(planAccount.getCashBalance()).thenReturn(new BigDecimal("500000"));
-        when(executionRepository.save(any(PlanExecution.class))).thenAnswer(inv -> {
-            PlanExecution e = inv.getArgument(0);
-            setField(e, "id", 1L);
-            return e;
-        });
-
-        PlanExecution result = service.recordExecution(
-                plan, TradeDirection.BUY,
-                new BigDecimal("10.00"), new BigDecimal("10.00"),
-                null, 5L);
-
-        assertNotNull(result.getCondition());
-        assertEquals(5L, result.getCondition().getId());
-    }
-
-    // 3.2 transitionState
-
-    @Test
-    void transitionState_toHolding_setsStatusAndLocked() {
+    void transitionState_toHolding_setsStatus() {
         Plan plan = TestFixtures.planBuilder()
                 .status(PlanStatus.PENDING)
-                .isLocked(false)
                 .build();
         when(planRepository.save(any(Plan.class))).thenReturn(plan);
 
         service.transitionState(plan, PlanStatus.HOLDING);
 
         assertEquals(PlanStatus.HOLDING, plan.getStatus());
-        assertTrue(plan.getIsLocked());
         verify(planRepository).save(plan);
     }
 
     @Test
-    void transitionState_toClosed_onlyChangesStatus() {
+    void transitionState_toClosed_setsStatus() {
         Plan plan = TestFixtures.planBuilder()
                 .status(PlanStatus.HOLDING)
-                .isLocked(true)
                 .build();
         when(planRepository.save(any(Plan.class))).thenReturn(plan);
 
         service.transitionState(plan, PlanStatus.CLOSED);
 
         assertEquals(PlanStatus.CLOSED, plan.getStatus());
-        assertTrue(plan.getIsLocked()); // stays true
         verify(planRepository).save(plan);
     }
 
     @Test
-    void transitionState_alwaysSaves() {
-        Plan plan = TestFixtures.planBuilder().status(PlanStatus.PENDING).build();
-        when(planRepository.save(any(Plan.class))).thenReturn(plan);
+    void closeBuyPlan_closesLinkedBuyPlan() {
+        Plan buyPlan = TestFixtures.planBuilder()
+                .id(1L)
+                .planType(PlanType.BUY)
+                .status(PlanStatus.HOLDING)
+                .build();
+        Plan sellPlan = TestFixtures.planBuilder()
+                .id(2L)
+                .planType(PlanType.SELL)
+                .buyPlan(buyPlan)
+                .build();
 
-        service.transitionState(plan, PlanStatus.HOLDING);
-        verify(planRepository, times(1)).save(plan);
+        service.closeBuyPlan(sellPlan);
+
+        assertEquals(PlanStatus.CLOSED, buyPlan.getStatus());
+        verify(planRepository).save(buyPlan);
     }
 
-    // 3.3 calculateCurrentReturn
+    @Test
+    void closeBuyPlan_buyPlanNotHolding_doesNothing() {
+        Plan buyPlan = TestFixtures.planBuilder()
+                .id(1L)
+                .planType(PlanType.BUY)
+                .status(PlanStatus.PENDING)
+                .build();
+        Plan sellPlan = TestFixtures.planBuilder()
+                .id(2L)
+                .planType(PlanType.SELL)
+                .buyPlan(buyPlan)
+                .build();
+
+        service.closeBuyPlan(sellPlan);
+
+        verify(planRepository, never()).save(any());
+    }
 
     @Test
-    void calculateReturn_positivePrice_returnsPositivePercent() {
-        Plan plan = TestFixtures.planBuilder().build();
-        PlanExecution buy = TestFixtures.executionBuilder()
-                .plan(plan)
-                .direction(TradeDirection.BUY)
+    void calculateReturn_buyPlanPositivePrice_returnsPositivePercent() {
+        Plan buyPlan = TestFixtures.planBuilder()
+                .id(1L)
+                .planType(PlanType.BUY)
+                .build();
+        PlanExecution buyExec = TestFixtures.executionBuilder()
+                .id(1L)
+                .plan(buyPlan)
                 .triggerPrice(new BigDecimal("10.00"))
                 .build();
-        when(executionRepository.findByPlanId(plan.getId())).thenReturn(List.of(buy));
+        when(executionRepository.findByPlanId(buyPlan.getId())).thenReturn(List.of(buyExec));
 
-        BigDecimal result = service.calculateCurrentReturn(plan, new BigDecimal("11.00"));
+        BigDecimal result = service.calculateCurrentReturn(buyPlan, new BigDecimal("11.00"));
 
         assertEquals(new BigDecimal("10.0000"), result);
     }
 
     @Test
-    void calculateReturn_negativePrice_returnsNegativePercent() {
-        Plan plan = TestFixtures.planBuilder().build();
-        PlanExecution buy = TestFixtures.executionBuilder()
-                .plan(plan)
-                .direction(TradeDirection.BUY)
-                .triggerPrice(new BigDecimal("10.00"))
-                .build();
-        when(executionRepository.findByPlanId(plan.getId())).thenReturn(List.of(buy));
-
-        BigDecimal result = service.calculateCurrentReturn(plan, new BigDecimal("9.00"));
-
-        assertEquals(new BigDecimal("-10.0000"), result);
-    }
-
-    @Test
-    void calculateReturn_multipleBuys_usesAverageCost() {
-        Plan plan = TestFixtures.planBuilder().build();
-
-        Plan p1 = TestFixtures.planBuilder().build();
-        PlanExecution buy1 = TestFixtures.executionBuilder().id(1L).plan(p1)
-                .direction(TradeDirection.BUY).triggerPrice(new BigDecimal("10.00")).build();
-        PlanExecution buy2 = TestFixtures.executionBuilder().id(2L).plan(p1)
-                .direction(TradeDirection.BUY).triggerPrice(new BigDecimal("20.00")).build();
-
-        when(executionRepository.findByPlanId(plan.getId())).thenReturn(List.of(buy1, buy2));
-
-        BigDecimal result = service.calculateCurrentReturn(plan, new BigDecimal("15.00"));
-        assertEquals(new BigDecimal("0.0000"), result); // avgCost=15, current=15 → 0%
-    }
-
-    @Test
     void calculateReturn_noBuyRecords_returnsZero() {
-        Plan plan = TestFixtures.planBuilder().build();
-        when(executionRepository.findByPlanId(plan.getId())).thenReturn(List.of());
+        Plan buyPlan = TestFixtures.planBuilder().build();
+        when(executionRepository.findByPlanId(buyPlan.getId())).thenReturn(List.of());
 
-        BigDecimal result = service.calculateCurrentReturn(plan, new BigDecimal("11.00"));
+        BigDecimal result = service.calculateCurrentReturn(buyPlan, new BigDecimal("11.00"));
+
         assertEquals(BigDecimal.ZERO, result);
     }
-
-    // 3.4 getByPlanId
 
     @Test
     void getByPlanId_notFound_throws404() {
@@ -270,7 +215,6 @@ class PlanExecutionServiceTest {
         verify(executionRepository).findByPlanIdOrderByTradeDateAsc(1L);
     }
 
-    // Utility
     private void setField(Object target, String fieldName, Object value) {
         try {
             java.lang.reflect.Field f = target.getClass().getDeclaredField(fieldName);

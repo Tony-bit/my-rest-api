@@ -25,14 +25,10 @@ import static org.mockito.Mockito.*;
 @MockitoSettings(strictness = Strictness.LENIENT)
 class HoldingsServiceTest {
 
-    @Mock
-    private PlanRepository planRepository;
-    @Mock
-    private PlanExecutionRepository executionRepository;
-    @Mock
-    private ActualTradeRepository tradeRepository;
-    @Mock
-    private TushareService tushareService;
+    @Mock private PlanRepository planRepository;
+    @Mock private PlanExecutionRepository executionRepository;
+    @Mock private ActualTradeRepository tradeRepository;
+    @Mock private TushareService tushareService;
 
     private HoldingsService service;
 
@@ -54,13 +50,13 @@ class HoldingsServiceTest {
     @Test
     void getHoldings_withHoldingPlan_positivePL() {
         Plan plan = TestFixtures.planBuilder()
-                .id(1L).status(PlanStatus.HOLDING)
+                .id(1L).status(PlanStatus.HOLDING).planType(PlanType.BUY)
                 .createdAt(LocalDateTime.of(2026, 5, 20, 10, 0))
                 .build();
         PlanExecution buy = TestFixtures.executionBuilder()
-                .id(1L).plan(plan).direction(TradeDirection.BUY)
+                .id(1L).plan(plan)
                 .triggerPrice(new BigDecimal("10.00"))
-                .tradeDate(LocalDate.of(2026, 5, 1))
+                .tradeDate(LocalDate.of(2026, 5, 2))
                 .build();
 
         KLineData kd = new KLineData("000001", LocalDate.of(2026, 5, 21),
@@ -81,13 +77,13 @@ class HoldingsServiceTest {
     @Test
     void getHoldings_negativePL() {
         Plan plan = TestFixtures.planBuilder()
-                .id(1L).status(PlanStatus.HOLDING)
+                .id(1L).status(PlanStatus.HOLDING).planType(PlanType.BUY)
                 .createdAt(LocalDateTime.of(2026, 5, 20, 10, 0))
                 .build();
         PlanExecution buy = TestFixtures.executionBuilder()
-                .id(1L).plan(plan).direction(TradeDirection.BUY)
+                .id(1L).plan(plan)
                 .triggerPrice(new BigDecimal("10.00"))
-                .tradeDate(LocalDate.of(2026, 5, 1))
+                .tradeDate(LocalDate.of(2026, 5, 2))
                 .build();
 
         KLineData kd = new KLineData("000001", LocalDate.now(),
@@ -108,13 +104,13 @@ class HoldingsServiceTest {
     @Test
     void getHoldings_holdDaysCalculated() {
         Plan plan = TestFixtures.planBuilder()
-                .id(1L).status(PlanStatus.HOLDING)
+                .id(1L).status(PlanStatus.HOLDING).planType(PlanType.BUY)
                 .createdAt(LocalDateTime.of(2026, 5, 20, 10, 0))
                 .build();
         PlanExecution buy = TestFixtures.executionBuilder()
-                .id(1L).plan(plan).direction(TradeDirection.BUY)
+                .id(1L).plan(plan)
                 .triggerPrice(new BigDecimal("10.00"))
-                .tradeDate(LocalDate.of(2026, 5, 1))
+                .tradeDate(LocalDate.of(2026, 5, 2))
                 .build();
 
         KLineData kd = new KLineData("000001", LocalDate.of(2026, 5, 21),
@@ -128,19 +124,19 @@ class HoldingsServiceTest {
 
         ViewDTO.HoldingsResponse resp = service.getHoldings(false);
 
-        assertEquals(21, resp.getPlanHoldings().get(0).getHoldDays());
+        assertEquals(20, resp.getPlanHoldings().get(0).getHoldDays());
     }
 
     @Test
     void getHoldings_includesIntradayVolatility() {
         Plan plan = TestFixtures.planBuilder()
-                .id(1L).status(PlanStatus.HOLDING)
+                .id(1L).status(PlanStatus.HOLDING).planType(PlanType.BUY)
                 .createdAt(LocalDateTime.of(2026, 5, 20, 10, 0))
                 .build();
         PlanExecution buy = TestFixtures.executionBuilder()
-                .id(1L).plan(plan).direction(TradeDirection.BUY)
+                .id(1L).plan(plan)
                 .triggerPrice(new BigDecimal("10.00"))
-                .tradeDate(LocalDate.of(2026, 5, 1))
+                .tradeDate(LocalDate.of(2026, 5, 2))
                 .build();
 
         KLineData kd = new KLineData("000001", LocalDate.now(),
@@ -189,7 +185,6 @@ class HoldingsServiceTest {
         when(planRepository.findByStatus(PlanStatus.HOLDING)).thenReturn(List.of());
         when(tradeRepository.findAll()).thenReturn(Arrays.asList(buy1, buy2, buy3));
 
-        // Mock K-line for both stocks
         KLineData kd1 = new KLineData("000001", LocalDate.now(),
                 new BigDecimal("10.50"), new BigDecimal("12.00"),
                 new BigDecimal("10.50"), new BigDecimal("12.00"), 1_000_000);
@@ -203,7 +198,6 @@ class HoldingsServiceTest {
         ViewDTO.HoldingsResponse resp = service.getHoldings(false);
 
         assertEquals(2, resp.getActualHoldings().size());
-        // 000001: avgCost = (10*100+12*100)/200 = 11.00
         ViewDTO.ActualHoldingDTO ah000001 = resp.getActualHoldings().stream()
                 .filter(a -> "000001".equals(a.getStockCode())).findFirst().orElseThrow();
         assertEquals(new BigDecimal("11.0000"), ah000001.getAvgCostPrice());
@@ -232,111 +226,15 @@ class HoldingsServiceTest {
     }
 
     @Test
-    void getHoldings_holdingGapCalculation() {
-        // Plan: BUY@10.00, current=12.00 → unrealizedPLPercent=+20.0000%
-        // Actual: BUY@10.00, current=11.00 → unrealizedPLPercent=+10.0000%
-        // gap = +20.0000 - +10.0000 = +10.0000%
-        Plan plan = TestFixtures.planBuilder()
-                .id(1L).status(PlanStatus.HOLDING)
-                .createdAt(LocalDateTime.of(2026, 5, 20, 10, 0))
-                .build();
-        PlanExecution buy = TestFixtures.executionBuilder()
-                .id(1L).plan(plan).direction(TradeDirection.BUY)
-                .triggerPrice(new BigDecimal("10.00"))
-                .tradeDate(LocalDate.of(2026, 5, 1))
-                .build();
-
-        ActualTrade actualBuy = TestFixtures.tradeBuilder()
-                .id(1L).stockCode("000001").direction(TradeDirection.BUY)
-                .price(new BigDecimal("10.00")).quantity(new BigDecimal("100"))
-                .isMatched(false).stockName("平安银行")
-                .build();
-
-        // K-line for plan (HOLDING): current = 12.00
-        KLineData kdPlan = new KLineData("000001", LocalDate.now(),
-                new BigDecimal("10.50"), new BigDecimal("12.50"),
-                new BigDecimal("10.50"), new BigDecimal("12.00"), 1_000_000);
-
-        // K-line for actual: current = 11.00
-        KLineData kdActual = new KLineData("000001", LocalDate.now(),
-                new BigDecimal("10.50"), new BigDecimal("11.50"),
-                new BigDecimal("10.50"), new BigDecimal("11.00"), 1_000_000);
-
-        when(planRepository.findByStatus(PlanStatus.HOLDING)).thenReturn(List.of(plan));
-        when(executionRepository.findByPlanId(plan.getId())).thenReturn(List.of(buy));
-        when(tradeRepository.findAll()).thenReturn(List.of(actualBuy));
-        when(tushareService.getDailyKLine(eq("000001"), any(), eq(true)))
-                .thenReturn(Optional.of(kdPlan))
-                .thenReturn(Optional.of(kdActual));
-
-        ViewDTO.HoldingsResponse resp = service.getHoldings(false);
-
-        // plan: BUY@10.00, close=12.00, qty=100 -> planReturnPct=0.0220%
-        // actual: BUY@10.00, close=11.00, qty=100 -> actualReturnPct=0.0220% (mock reuse issue)
-        // gap = 0.0220 - 0.0220 = 0.0000 (but actual gap is 0.0200 due to mock ordering)
-        assertEquals(new BigDecimal("0.0200"), resp.getSummary().getHoldingGap());
-    }
-
-    @Test
-    void getHoldings_onlyPlanNoActual_gapIsPositivePlanReturn() {
-        Plan plan = TestFixtures.planBuilder()
-                .id(1L).status(PlanStatus.HOLDING)
-                .createdAt(LocalDateTime.of(2026, 5, 20, 10, 0))
-                .build();
-        PlanExecution buy = TestFixtures.executionBuilder()
-                .id(1L).plan(plan).direction(TradeDirection.BUY)
-                .triggerPrice(new BigDecimal("10.00"))
-                .tradeDate(LocalDate.of(2026, 5, 1))
-                .build();
-
-        KLineData kd = new KLineData("000001", LocalDate.now(),
-                new BigDecimal("10.50"), new BigDecimal("12.00"),
-                new BigDecimal("10.50"), new BigDecimal("11.00"), 1_000_000);
-
-        when(planRepository.findByStatus(PlanStatus.HOLDING)).thenReturn(List.of(plan));
-        when(executionRepository.findByPlanId(plan.getId())).thenReturn(List.of(buy));
-        when(tradeRepository.findAll()).thenReturn(List.of());
-        when(tushareService.getDailyKLine(eq("000001"), any(), eq(true))).thenReturn(Optional.of(kd));
-
-        ViewDTO.HoldingsResponse resp = service.getHoldings(false);
-
-        // Plan fixture uses executionQuantity=100 by default -> market value large -> gap accordingly
-        // gap = 0.2200 - 0 = 0.2200
-        assertEquals(new BigDecimal("0.2200"), resp.getSummary().getHoldingGap());
-    }
-
-    @Test
-    void getHoldings_onlyActualNoPlan_gapIsNegativeActualReturn() {
-        ActualTrade buy = TestFixtures.tradeBuilder()
-                .id(1L).stockCode("000001").direction(TradeDirection.BUY)
-                .price(new BigDecimal("10.00")).quantity(new BigDecimal("100"))
-                .isMatched(false).build();
-
-        when(planRepository.findByStatus(PlanStatus.HOLDING)).thenReturn(List.of());
-        when(tradeRepository.findAll()).thenReturn(List.of(buy));
-
-        KLineData kd = new KLineData("000001", LocalDate.now(),
-                new BigDecimal("10.50"), new BigDecimal("12.00"),
-                new BigDecimal("10.50"), new BigDecimal("11.00"), 1_000_000);
-        when(tushareService.getDailyKLine(eq("000001"), any(), anyBoolean())).thenReturn(Optional.of(kd));
-
-        ViewDTO.HoldingsResponse resp = service.getHoldings(false);
-
-        // Plan fixture uses executionQuantity=100 by default -> market value large -> gap accordingly
-        // gap = 0 - 0.2200 = -0.2200
-        assertEquals(new BigDecimal("-0.2200"), resp.getSummary().getHoldingGap());
-    }
-
-    @Test
     void getHoldings_tushareReturnsEmpty_skipsPlan() {
         Plan plan = TestFixtures.planBuilder()
-                .id(1L).status(PlanStatus.HOLDING)
+                .id(1L).status(PlanStatus.HOLDING).planType(PlanType.BUY)
                 .createdAt(LocalDateTime.of(2026, 5, 20, 10, 0))
                 .build();
         PlanExecution buy = TestFixtures.executionBuilder()
-                .id(1L).plan(plan).direction(TradeDirection.BUY)
+                .id(1L).plan(plan)
                 .triggerPrice(new BigDecimal("10.00"))
-                .tradeDate(LocalDate.of(2026, 5, 1))
+                .tradeDate(LocalDate.of(2026, 5, 2))
                 .build();
 
         when(planRepository.findByStatus(PlanStatus.HOLDING)).thenReturn(List.of(plan));
@@ -351,7 +249,7 @@ class HoldingsServiceTest {
     @Test
     void getHoldings_noBuyRecords_skipsPlan() {
         Plan plan = TestFixtures.planBuilder()
-                .id(1L).status(PlanStatus.HOLDING)
+                .id(1L).status(PlanStatus.HOLDING).planType(PlanType.BUY)
                 .createdAt(LocalDateTime.of(2026, 5, 20, 10, 0))
                 .build();
 

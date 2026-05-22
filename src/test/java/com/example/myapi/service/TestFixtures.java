@@ -28,14 +28,24 @@ public class TestFixtures {
         return new KLineBuilder();
     }
 
+    public static SystemConfigBuilder systemConfigBuilder() {
+        return new SystemConfigBuilder();
+    }
+
+    public static AccountBuilder accountBuilder() {
+        return new AccountBuilder();
+    }
+
     public static class PlanBuilder {
         private Long id = 1L;
         private String name = "测试预案";
         private String stockCode = "000001";
         private String stockName = "平安银行";
         private PlanCycle cycle = PlanCycle.DAILY;
+        private PlanType planType = PlanType.BUY;
         private PlanStatus status = PlanStatus.PENDING;
-        private Boolean isLocked = false;
+        private Long tradePlanId;
+        private Plan buyPlan;
         private LocalDate validUntil;
         private LocalDate triggerDate;
         private BigDecimal executionQuantity = new BigDecimal("100");
@@ -47,8 +57,10 @@ public class TestFixtures {
         public PlanBuilder stockCode(String stockCode) { this.stockCode = stockCode; return this; }
         public PlanBuilder stockName(String stockName) { this.stockName = stockName; return this; }
         public PlanBuilder cycle(PlanCycle cycle) { this.cycle = cycle; return this; }
+        public PlanBuilder planType(PlanType planType) { this.planType = planType; return this; }
         public PlanBuilder status(PlanStatus status) { this.status = status; return this; }
-        public PlanBuilder isLocked(Boolean isLocked) { this.isLocked = isLocked; return this; }
+        public PlanBuilder tradePlanId(Long tradePlanId) { this.tradePlanId = tradePlanId; return this; }
+        public PlanBuilder buyPlan(Plan buyPlan) { this.buyPlan = buyPlan; return this; }
         public PlanBuilder validUntil(LocalDate validUntil) { this.validUntil = validUntil; return this; }
         public PlanBuilder triggerDate(LocalDate triggerDate) { this.triggerDate = triggerDate; return this; }
         public PlanBuilder executionQuantity(BigDecimal executionQuantity) { this.executionQuantity = executionQuantity; return this; }
@@ -60,8 +72,10 @@ public class TestFixtures {
                     .stockCode(stockCode)
                     .stockName(stockName)
                     .cycle(cycle)
+                    .planType(planType)
                     .status(status)
-                    .isLocked(isLocked)
+                    .tradePlanId(tradePlanId)
+                    .buyPlan(buyPlan)
                     .validUntil(validUntil)
                     .triggerDate(triggerDate)
                     .executionQuantity(executionQuantity)
@@ -85,27 +99,21 @@ public class TestFixtures {
         private Long id = 1L;
         private Plan plan;
         private ConditionType conditionType = ConditionType.PRICE;
-        private TradeDirection direction = TradeDirection.BUY;
         private Integer maPeriod = 5;
         private BigDecimal targetPrice = new BigDecimal("10.00");
-        private Boolean isActive = true;
 
         public ConditionBuilder id(Long id) { this.id = id; return this; }
         public ConditionBuilder plan(Plan plan) { this.plan = plan; return this; }
         public ConditionBuilder conditionType(ConditionType type) { this.conditionType = type; return this; }
-        public ConditionBuilder direction(TradeDirection direction) { this.direction = direction; return this; }
         public ConditionBuilder maPeriod(Integer maPeriod) { this.maPeriod = maPeriod; return this; }
         public ConditionBuilder targetPrice(BigDecimal targetPrice) { this.targetPrice = targetPrice; return this; }
-        public ConditionBuilder isActive(Boolean isActive) { this.isActive = isActive; return this; }
 
         public PlanCondition build() {
             Plan p = plan != null ? plan : planBuilder().build();
             PlanCondition cond = PlanCondition.builder()
                     .conditionType(conditionType)
-                    .direction(direction)
                     .maPeriod(maPeriod)
                     .targetPrice(targetPrice)
-                    .isActive(isActive)
                     .build();
             setField(cond, "id", id);
             setField(cond, "plan", p);
@@ -125,37 +133,34 @@ public class TestFixtures {
         private Long id = 1L;
         private Plan plan;
         private LocalDate tradeDate = LocalDate.of(2026, 5, 20);
-        private TradeDirection direction = TradeDirection.BUY;
         private Boolean triggered = true;
         private BigDecimal triggerPrice = new BigDecimal("10.00");
         private BigDecimal closePrice = new BigDecimal("10.00");
         private BigDecimal maValue;
-        private PlanCondition condition;
+        private PlanExecution linkedExecution;
         private Boolean executed = true;
 
         public ExecutionBuilder id(Long id) { this.id = id; return this; }
         public ExecutionBuilder plan(Plan plan) { this.plan = plan; return this; }
         public ExecutionBuilder tradeDate(LocalDate tradeDate) { this.tradeDate = tradeDate; return this; }
-        public ExecutionBuilder direction(TradeDirection direction) { this.direction = direction; return this; }
         public ExecutionBuilder triggerPrice(BigDecimal triggerPrice) { this.triggerPrice = triggerPrice; return this; }
         public ExecutionBuilder closePrice(BigDecimal closePrice) { this.closePrice = closePrice; return this; }
         public ExecutionBuilder maValue(BigDecimal maValue) { this.maValue = maValue; return this; }
-        public ExecutionBuilder condition(PlanCondition condition) { this.condition = condition; return this; }
+        public ExecutionBuilder linkedExecution(PlanExecution linkedExecution) { this.linkedExecution = linkedExecution; return this; }
 
         public PlanExecution build() {
             Plan p = plan != null ? plan : planBuilder().build();
             PlanExecution exec = PlanExecution.builder()
                     .tradeDate(tradeDate)
-                    .direction(direction)
                     .triggered(triggered)
                     .triggerPrice(triggerPrice)
                     .closePrice(closePrice)
                     .maValue(maValue)
+                    .linkedExecution(linkedExecution)
                     .executed(executed)
                     .build();
             setField(exec, "id", id);
             setField(exec, "plan", p);
-            if (condition != null) setField(exec, "condition", condition);
             return exec;
         }
 
@@ -237,6 +242,36 @@ public class TestFixtures {
 
         public KLineData build() {
             return new KLineData(stockCode, date, open, high, low, close, volume);
+        }
+    }
+
+    public static class SystemConfigBuilder {
+        private BigDecimal baselineCapital = new BigDecimal("500000");
+
+        public SystemConfigBuilder baselineCapital(BigDecimal baselineCapital) {
+            this.baselineCapital = baselineCapital;
+            return this;
+        }
+
+        public SystemConfig build() {
+            return SystemConfig.builder()
+                    .baselineCapital(baselineCapital)
+                    .build();
+        }
+    }
+
+    public static class AccountBuilder {
+        private BigDecimal cashBalance = new BigDecimal("500000");
+
+        public AccountBuilder cashBalance(BigDecimal cashBalance) {
+            this.cashBalance = cashBalance;
+            return this;
+        }
+
+        public PlanAccount build() {
+            return PlanAccount.builder()
+                    .cashBalance(cashBalance)
+                    .build();
         }
     }
 }

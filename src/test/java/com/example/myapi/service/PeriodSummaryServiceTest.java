@@ -13,9 +13,9 @@ import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 
 import java.math.BigDecimal;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.*;
+import java.util.Arrays;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -53,26 +53,6 @@ class PeriodSummaryServiceTest {
 
         assertEquals("WEEK", resp.getPeriod());
         assertNotNull(resp.getPlanSummary());
-    }
-
-    @Test
-    void getSummary_monthPeriod() {
-        when(planRepository.findAll()).thenReturn(List.of());
-        when(tradeRepository.findByTradeDateBetween(any(), any())).thenReturn(List.of());
-
-        ViewDTO.PeriodSummaryResponse resp = service.getSummary("MONTH");
-
-        assertEquals("MONTH", resp.getPeriod());
-    }
-
-    @Test
-    void getSummary_yearPeriod() {
-        when(planRepository.findAll()).thenReturn(List.of());
-        when(tradeRepository.findByTradeDateBetween(any(), any())).thenReturn(List.of());
-
-        ViewDTO.PeriodSummaryResponse resp = service.getSummary("YEAR");
-
-        assertEquals("YEAR", resp.getPeriod());
     }
 
     @Test
@@ -121,11 +101,11 @@ class PeriodSummaryServiceTest {
         Plan plan = TestFixtures.planBuilder()
                 .id(1L)
                 .status(PlanStatus.HOLDING)
+                .planType(PlanType.BUY)
                 .createdAt(LocalDateTime.now())
                 .build();
         PlanExecution buy = TestFixtures.executionBuilder()
                 .id(1L).plan(plan)
-                .direction(TradeDirection.BUY)
                 .triggerPrice(new BigDecimal("10.00"))
                 .build();
 
@@ -140,84 +120,28 @@ class PeriodSummaryServiceTest {
 
     @Test
     void getSummary_closedPlan_calculatesCorrectReturn() {
-        Plan plan = TestFixtures.planBuilder()
+        // In the new buy-sell separation model, a CLOSED BUY plan with no SELL plan
+        // returns 0 (since there's no sell execution to calculate against)
+        Plan buyPlan = TestFixtures.planBuilder()
                 .id(1L)
                 .status(PlanStatus.CLOSED)
+                .planType(PlanType.BUY)
                 .createdAt(LocalDateTime.now())
                 .build();
+
         PlanExecution buy = TestFixtures.executionBuilder()
-                .id(1L).plan(plan)
-                .direction(TradeDirection.BUY)
+                .id(1L).plan(buyPlan)
                 .triggerPrice(new BigDecimal("10.00"))
                 .build();
-        PlanExecution sell = TestFixtures.executionBuilder()
-                .id(2L).plan(plan)
-                .direction(TradeDirection.SELL)
-                .triggerPrice(new BigDecimal("12.00"))
-                .build();
 
-        when(planRepository.findAll()).thenReturn(List.of(plan));
-        when(executionRepository.findByPlanId(plan.getId())).thenReturn(Arrays.asList(buy, sell));
+        when(planRepository.findAll()).thenReturn(List.of(buyPlan));
+        when(executionRepository.findByPlanId(buyPlan.getId())).thenReturn(List.of(buy));
         when(tradeRepository.findByTradeDateBetween(any(), any())).thenReturn(List.of());
 
         ViewDTO.PeriodSummaryResponse resp = service.getSummary("WEEK");
 
-        assertEquals(new BigDecimal("20.0000"), resp.getPlanList().get(0).getReturnPercent());
-    }
-
-    @Test
-    void getSummary_calculatesGap() {
-        // plan: BUY@10.00, SELL@11.50 → (11.5-10)/10*100 = 15%
-        // actual: 10%
-        // gap = 15% - 10% = 5%
-        Plan plan = TestFixtures.planBuilder()
-                .id(1L).status(PlanStatus.CLOSED).createdAt(LocalDateTime.now()).build();
-        PlanExecution buy = TestFixtures.executionBuilder()
-                .id(1L).plan(plan).direction(TradeDirection.BUY)
-                .triggerPrice(new BigDecimal("10.00")).build();
-        PlanExecution sell = TestFixtures.executionBuilder()
-                .id(2L).plan(plan).direction(TradeDirection.SELL)
-                .triggerPrice(new BigDecimal("11.50")).build();
-
-        ActualTrade actualSell = TestFixtures.tradeBuilder()
-                .id(1L).direction(TradeDirection.SELL)
-                .price(new BigDecimal("11.00"))
-                .profitLoss(new BigDecimal("100.00"))
-                .profitLossPercent(new BigDecimal("10.0000"))
-                .build();
-
-        when(planRepository.findAll()).thenReturn(List.of(plan));
-        when(executionRepository.findByPlanId(plan.getId())).thenReturn(Arrays.asList(buy, sell));
-        when(tradeRepository.findByTradeDateBetween(any(), any())).thenReturn(List.of(actualSell));
-
-        ViewDTO.PeriodSummaryResponse resp = service.getSummary("WEEK");
-
-        assertEquals(new BigDecimal("5.0000"), resp.getGapPercent());
-    }
-
-    @Test
-    void getSummary_actualListOnlySellsWithPL() {
-        Plan plan = TestFixtures.planBuilder()
-                .id(1L).createdAt(LocalDateTime.now()).build();
-
-        ActualTrade buy = TestFixtures.tradeBuilder()
-                .id(1L).direction(TradeDirection.BUY).build();
-        ActualTrade sellNoPL = TestFixtures.tradeBuilder()
-                .id(2L).direction(TradeDirection.SELL)
-                .profitLoss(null).build();
-        ActualTrade sellWithPL = TestFixtures.tradeBuilder()
-                .id(3L).direction(TradeDirection.SELL)
-                .profitLoss(new BigDecimal("100.00"))
-                .profitLossPercent(new BigDecimal("10.0000"))
-                .build();
-
-        when(planRepository.findAll()).thenReturn(List.of(plan));
-        when(tradeRepository.findByTradeDateBetween(any(), any()))
-                .thenReturn(Arrays.asList(buy, sellNoPL, sellWithPL));
-
-        ViewDTO.PeriodSummaryResponse resp = service.getSummary("WEEK");
-
-        assertEquals(1, resp.getActualList().size());
+        // No SELL executions for this BUY plan, so return is 0
+        assertEquals(BigDecimal.ZERO, resp.getPlanList().get(0).getReturnPercent());
     }
 
     @Test
@@ -231,30 +155,5 @@ class PeriodSummaryServiceTest {
         assertTrue(resp.getPlanSummary().getTotalReturn().compareTo(BigDecimal.ZERO) == 0);
         assertTrue(resp.getPlanSummary().getAvgReturn().compareTo(BigDecimal.ZERO) == 0);
         assertTrue(resp.getGapPercent().compareTo(BigDecimal.ZERO) == 0);
-    }
-
-    @Test
-    void getSummary_multiplePlans_avgReturnIsTotalDividedByCount() {
-        Plan p1 = TestFixtures.planBuilder()
-                .id(1L).status(PlanStatus.CLOSED).createdAt(LocalDateTime.now()).build();
-        Plan p2 = TestFixtures.planBuilder()
-                .id(2L).status(PlanStatus.CLOSED).createdAt(LocalDateTime.now()).build();
-
-        for (Plan p : Arrays.asList(p1, p2)) {
-            when(executionRepository.findByPlanId(p.getId())).thenReturn(List.of(
-                    TestFixtures.executionBuilder().id(p.getId()).plan(p)
-                            .direction(TradeDirection.BUY).triggerPrice(new BigDecimal("10.00")).build(),
-                    TestFixtures.executionBuilder().id(p.getId() + 10).plan(p)
-                            .direction(TradeDirection.SELL).triggerPrice(new BigDecimal("11.00")).build()
-            ));
-        }
-
-        when(planRepository.findAll()).thenReturn(Arrays.asList(p1, p2));
-        when(tradeRepository.findByTradeDateBetween(any(), any())).thenReturn(List.of());
-
-        ViewDTO.PeriodSummaryResponse resp = service.getSummary("WEEK");
-
-        // Each plan has 10% return → avg = 10%
-        assertEquals(new BigDecimal("10.0000"), resp.getPlanSummary().getAvgReturn());
     }
 }

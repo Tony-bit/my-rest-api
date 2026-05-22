@@ -38,13 +38,20 @@ public class Plan {
     private PlanCycle cycle;
 
     @Enumerated(EnumType.STRING)
+    @Column(name = "plan_type", nullable = false, length = 10)
+    private PlanType planType;
+
+    @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     @Builder.Default
     private PlanStatus status = PlanStatus.PENDING;
 
-    @Column(name = "is_locked", nullable = false)
-    @Builder.Default
-    private Boolean isLocked = false;
+    @Column(name = "trade_plan_id")
+    private Long tradePlanId;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "buy_plan_id")
+    private Plan buyPlan;
 
     @Column(name = "valid_until")
     private LocalDate validUntil;

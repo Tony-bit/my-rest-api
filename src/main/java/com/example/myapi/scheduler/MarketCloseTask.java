@@ -73,11 +73,21 @@ public class MarketCloseTask {
     }
 
     void evaluateTriggerConditions(LocalDate today) {
-        List<Plan> activePlans = planRepository.findByStatusIn(List.of(PlanStatus.PENDING, PlanStatus.HOLDING));
-        for (Plan plan : activePlans) {
-            List<PlanCondition> conditions = plan.getConditions().stream()
-                    .filter(PlanCondition::getIsActive)
-                    .toList();
+        evaluateBuyPlans(today);
+        evaluateSellPlans(today);
+    }
+
+    void evaluateBuyPlans(LocalDate today) {
+        List<Plan> pendingBuyPlans = planRepository.findByPlanTypeAndStatus(PlanType.BUY, PlanStatus.PENDING);
+        for (Plan plan : pendingBuyPlans) {
+            if (isOutsideValidityWindow(plan, today)) {
+                continue;
+            }
+
+            if (plan.getConditions().isEmpty()) {
+                log.info("BUY Plan id={} has no conditions", plan.getId());
+                continue;
+            }
 
             Optional<KLineData> kDataOpt = tushareService.getDailyKLine(plan.getStockCode(), today, true);
             if (kDataOpt.isEmpty()) {
@@ -86,32 +96,58 @@ public class MarketCloseTask {
             }
             KLineData kData = kDataOpt.get();
 
-            for (PlanCondition cond : conditions) {
-                if (plan.getStatus() == PlanStatus.PENDING && cond.getDirection() == TradeDirection.BUY) {
-                    BigDecimal maValue = null;
-                    if (cond.getConditionType() == ConditionType.MA) {
-                        maValue = tushareService.calculateMA(plan.getStockCode(), cond.getMaPeriod(), today);
-                    }
-                    if (tushareService.evaluateCondition(cond, kData, maValue)) {
-                        executionService.recordExecution(plan, TradeDirection.BUY, kData.close,
-                                kData.close, maValue, cond.getId());
-                        executionService.transitionState(plan, PlanStatus.HOLDING);
-                        log.info("Plan id={} BUY triggered at price={}", plan.getId(), kData.close);
-                        break;
-                    }
-                } else if (plan.getStatus() == PlanStatus.HOLDING && cond.getDirection() == TradeDirection.SELL) {
-                    BigDecimal maValue = null;
-                    if (cond.getConditionType() == ConditionType.MA) {
-                        maValue = tushareService.calculateMA(plan.getStockCode(), cond.getMaPeriod(), today);
-                    }
-                    if (tushareService.evaluateCondition(cond, kData, maValue)) {
-                        executionService.recordExecution(plan, TradeDirection.SELL, kData.close,
-                                kData.close, maValue, cond.getId());
-                        executionService.transitionState(plan, PlanStatus.CLOSED);
-                        log.info("Plan id={} SELL triggered at price={}", plan.getId(), kData.close);
-                        break;
-                    }
-                }
+            PlanCondition cond = plan.getConditions().get(0);
+            BigDecimal maValue = null;
+            if (cond.getConditionType() == ConditionType.MA) {
+                maValue = tushareService.calculateMA(plan.getStockCode(), cond.getMaPeriod(), today);
+            }
+
+            if (tushareService.evaluateCondition(cond, PlanType.BUY, kData, maValue)) {
+                BigDecimal triggerPrice = (maValue != null) ? maValue : kData.close;
+                executionService.recordExecution(plan, triggerPrice, kData.close, maValue, null);
+                executionService.transitionState(plan, PlanStatus.HOLDING);
+                log.info("BUY Plan id={} triggered at price={}", plan.getId(), triggerPrice);
+            }
+        }
+    }
+
+    void evaluateSellPlans(LocalDate today) {
+        List<Plan> pendingSellPlans = planRepository.findByPlanTypeAndStatus(PlanType.SELL, PlanStatus.PENDING);
+        for (Plan sellPlan : pendingSellPlans) {
+            if (isOutsideValidityWindow(sellPlan, today)) {
+                continue;
+            }
+
+            Plan buyPlan = sellPlan.getBuyPlan();
+            if (buyPlan == null || buyPlan.getStatus() != PlanStatus.HOLDING) {
+                log.debug("SELL Plan id={} skipped: linked BUY plan not in HOLDING", sellPlan.getId());
+                continue;
+            }
+
+            if (sellPlan.getConditions().isEmpty()) {
+                log.info("SELL Plan id={} has no conditions", sellPlan.getId());
+                continue;
+            }
+
+            Optional<KLineData> kDataOpt = tushareService.getDailyKLine(sellPlan.getStockCode(), today, true);
+            if (kDataOpt.isEmpty()) {
+                log.warn("No K-line data for stock {} on {}", sellPlan.getStockCode(), today);
+                continue;
+            }
+            KLineData kData = kDataOpt.get();
+
+            PlanCondition cond = sellPlan.getConditions().get(0);
+            BigDecimal maValue = null;
+            if (cond.getConditionType() == ConditionType.MA) {
+                maValue = tushareService.calculateMA(sellPlan.getStockCode(), cond.getMaPeriod(), today);
+            }
+
+            if (tushareService.evaluateCondition(cond, PlanType.SELL, kData, maValue)) {
+                BigDecimal triggerPrice = (maValue != null) ? maValue : kData.close;
+                PlanExecution sellExecution = executionService.recordExecution(sellPlan, triggerPrice, kData.close, maValue, null);
+                executionService.transitionState(sellPlan, PlanStatus.CLOSED);
+                executionService.closeBuyPlan(sellPlan);
+                log.info("SELL Plan id={} triggered at price={}, linked BUY plan closed", sellPlan.getId(), triggerPrice);
             }
         }
     }
@@ -129,14 +165,14 @@ public class MarketCloseTask {
             BigDecimal planReturnPct = BigDecimal.ZERO;
 
             if (plan.getStatus() == PlanStatus.HOLDING) {
-                List<PlanExecution> buys = executionRepository.findByPlanId(plan.getId()).stream()
-                        .filter(e -> e.getDirection() == TradeDirection.BUY)
+                List<PlanExecution> buyExecutions = executionRepository.findByPlanId(plan.getId()).stream()
+                        .filter(e -> e.getPlan().getPlanType() == PlanType.BUY)
                         .toList();
-                if (!buys.isEmpty()) {
-                    BigDecimal totalCost = buys.stream()
+                if (!buyExecutions.isEmpty()) {
+                    BigDecimal totalCost = buyExecutions.stream()
                             .map(PlanExecution::getTriggerPrice)
                             .reduce(BigDecimal.ZERO, BigDecimal::add);
-                    BigDecimal quantity = BigDecimal.valueOf(buys.size())
+                    BigDecimal quantity = BigDecimal.valueOf(buyExecutions.size())
                             .multiply(plan.getExecutionQuantity());
                     BigDecimal marketValue = kData.close.multiply(quantity);
                     BigDecimal totalValue = planCashBalance.add(marketValue);

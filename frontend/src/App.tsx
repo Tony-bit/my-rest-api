@@ -19,6 +19,7 @@ export default function App() {
           <Route index element={<Dashboard />} />
           <Route path="plans" element={<PlanList />} />
           <Route path="plans/new" element={<PlanCreate />} />
+          <Route path="plans/sell/new" element={<PlanCreate />} />
           <Route path="plans/:id" element={<PlanDetail />} />
           <Route path="plans/:id/edit" element={<PlanEdit />} />
           <Route path="actual-trades" element={<TradeList />} />

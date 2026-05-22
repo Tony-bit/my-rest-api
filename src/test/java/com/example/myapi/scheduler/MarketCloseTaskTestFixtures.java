@@ -5,36 +5,58 @@ import com.example.myapi.service.TushareService.KLineData;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 
 public class MarketCloseTaskTestFixtures {
 
-    public static Plan makePlan(PlanStatus status, PlanCycle cycle) {
+    public static Plan makeBuyPlan(PlanStatus status, PlanCycle cycle) {
         Plan plan = Plan.builder()
-                .name("测试预案")
+                .name("测试买入预案")
                 .stockCode("000001")
                 .stockName("平安银行")
                 .cycle(cycle)
+                .planType(PlanType.BUY)
                 .status(status)
-                .isLocked(false)
                 .executionQuantity(new BigDecimal("100"))
                 .build();
         setField(plan, "id", 1L);
+        setField(plan, "tradePlanId", 1L);
         setField(plan, "createdAt", LocalDateTime.of(2026, 5, 20, 10, 0));
         setField(plan, "updatedAt", LocalDateTime.of(2026, 5, 20, 10, 0));
+        setField(plan, "conditions", new ArrayList<>());
+        setField(plan, "executions", new ArrayList<>());
         return plan;
     }
 
-    public static PlanCondition makeCondition(Plan plan, TradeDirection direction,
-            ConditionType type, BigDecimal targetPrice, boolean active) {
+    public static Plan makeSellPlan(Plan buyPlan, PlanStatus status) {
+        Plan sellPlan = Plan.builder()
+                .name("测试卖出预案")
+                .stockCode(buyPlan.getStockCode())
+                .stockName(buyPlan.getStockName())
+                .cycle(buyPlan.getCycle())
+                .planType(PlanType.SELL)
+                .status(status)
+                .tradePlanId(buyPlan.getId())
+                .buyPlan(buyPlan)
+                .executionQuantity(buyPlan.getExecutionQuantity())
+                .build();
+        setField(sellPlan, "id", 2L);
+        setField(sellPlan, "createdAt", LocalDateTime.now());
+        setField(sellPlan, "updatedAt", LocalDateTime.now());
+        setField(sellPlan, "conditions", new ArrayList<>());
+        setField(sellPlan, "executions", new ArrayList<>());
+        return sellPlan;
+    }
+
+    public static PlanCondition makeCondition(Plan plan, ConditionType type, BigDecimal targetPrice) {
         PlanCondition cond = PlanCondition.builder()
                 .conditionType(type)
-                .direction(direction)
                 .maPeriod(5)
                 .targetPrice(targetPrice)
-                .isActive(active)
                 .build();
         setField(cond, "id", 1L);
         setField(cond, "plan", plan);
+        plan.getConditions().add(cond);
         return cond;
     }
 

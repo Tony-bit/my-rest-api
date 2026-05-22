@@ -2,6 +2,7 @@ package com.example.myapi.repository;
 
 import com.example.myapi.entity.Plan;
 import com.example.myapi.entity.PlanStatus;
+import com.example.myapi.entity.PlanType;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -25,4 +26,10 @@ public interface PlanRepository extends JpaRepository<Plan, Long> {
     List<Plan> findActivePlans(@Param("status") PlanStatus status, @Param("stockCode") String stockCode);
 
     List<Plan> findByTriggerDateAndStatus(LocalDate triggerDate, PlanStatus status);
+
+    List<Plan> findByPlanTypeAndStatus(PlanType planType, PlanStatus status);
+
+    List<Plan> findByTradePlanId(Long tradePlanId);
+
+    List<Plan> findByPlanTypeAndStatusNot(PlanType planType, PlanStatus status);
 }

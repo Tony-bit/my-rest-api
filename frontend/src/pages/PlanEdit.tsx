@@ -3,13 +3,15 @@ import { useParams, useNavigate } from 'react-router-dom'
 import ErrorAlert from '@/components/common/ErrorAlert'
 import LoadingSkeleton from '@/components/common/LoadingSkeleton'
 import { usePlan, useUpdatePlan } from '@/hooks'
-import type { Cycle } from '@/types'
+import type { Cycle, ConditionType } from '@/types'
 
 const CYCLE_OPTIONS: { value: Cycle; label: string }[] = [
   { value: 'DAILY', label: '日度' },
   { value: 'WEEKLY', label: '周度' },
   { value: 'MONTHLY', label: '月度' },
 ]
+
+const MA_PERIODS = [5, 10, 20, 60, 120, 250]
 
 export default function PlanEdit() {
   const { id } = useParams<{ id: string }>()
@@ -27,6 +29,9 @@ export default function PlanEdit() {
     validUntil: '',
     executionQuantity: 100,
   })
+  const [conditionType, setConditionType] = useState<ConditionType>('MA')
+  const [maPeriod, setMaPeriod] = useState<number>(20)
+  const [targetPrice, setTargetPrice] = useState('')
   const [error, setError] = useState('')
 
   useEffect(() => {
@@ -39,6 +44,15 @@ export default function PlanEdit() {
       validUntil: plan.validUntil,
       executionQuantity: plan.executionQuantity,
     })
+    // Load existing condition if present
+    if (plan.condition) {
+      setConditionType(plan.condition.conditionType)
+      if (plan.condition.conditionType === 'MA' && plan.condition.maPeriod) {
+        setMaPeriod(plan.condition.maPeriod)
+      } else if (plan.condition.conditionType === 'PRICE' && plan.condition.targetPrice) {
+        setTargetPrice(plan.condition.targetPrice.toString())
+      }
+    }
   }, [plan])
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -49,7 +63,18 @@ export default function PlanEdit() {
       return
     }
     try {
-      await updateMutation.mutateAsync({ id: planId, data: form })
+      let condition: { conditionType: 'MA'; maPeriod: number } | { conditionType: 'PRICE'; targetPrice: number }
+      if (conditionType === 'MA') {
+        condition = { conditionType: 'MA', maPeriod }
+      } else {
+        if (!targetPrice || parseFloat(targetPrice) <= 0) {
+          setError('请输入有效的目标价格')
+          return
+        }
+        condition = { conditionType: 'PRICE', targetPrice: parseFloat(targetPrice) }
+      }
+
+      await updateMutation.mutateAsync({ id: planId, data: { ...form, condition } })
       navigate(`/plans/${planId}`)
     } catch (err) {
       setError((err as Error).message)
@@ -65,10 +90,12 @@ export default function PlanEdit() {
     )
   }
 
-  if (plan?.status !== 'PENDING') {
+  const canEdit = plan?.status === 'PENDING' || plan?.status === 'HOLDING'
+
+  if (!canEdit) {
     return (
       <div className="p-6 max-w-2xl">
-        <ErrorAlert message="该预案当前状态不允许编辑" />
+        <ErrorAlert message={`该预案当前状态（${plan?.status}）不允许编辑`} />
         <button onClick={() => navigate(-1)} className="mt-3 text-sm text-blue-400">返回</button>
       </div>
     )
@@ -79,6 +106,9 @@ export default function PlanEdit() {
       <div className="flex items-center gap-3">
         <button onClick={() => navigate(-1)} className="text-gray-400 hover:text-gray-200">←</button>
         <h2 className="text-base font-medium text-gray-200">编辑预案</h2>
+        {plan?.status === 'HOLDING' && (
+          <span className="px-2 py-0.5 text-xs bg-orange-900/50 text-orange-300 rounded">持仓中</span>
+        )}
       </div>
 
       {error && <ErrorAlert message={error} />}
@@ -113,6 +143,54 @@ export default function PlanEdit() {
           <Field label="股数">
             <input type="number" value={form.executionQuantity} onChange={(e) => setForm((f) => ({ ...f, executionQuantity: parseInt(e.target.value) || 0 }))} className="field-input w-32" min="1" />
           </Field>
+        </section>
+
+        <section className="space-y-3 pt-3 border-t border-gray-800">
+          <h3 className="text-sm font-medium text-gray-300">触发条件</h3>
+          <div className="flex gap-4">
+            <label className="flex items-center gap-1.5 cursor-pointer">
+              <input
+                type="radio"
+                name="conditionType"
+                checked={conditionType === 'MA'}
+                onChange={() => setConditionType('MA')}
+                className="accent-blue-500"
+              />
+              <span className="text-sm text-gray-300">MA均线</span>
+            </label>
+            <label className="flex items-center gap-1.5 cursor-pointer">
+              <input
+                type="radio"
+                name="conditionType"
+                checked={conditionType === 'PRICE'}
+                onChange={() => setConditionType('PRICE')}
+                className="accent-blue-500"
+              />
+              <span className="text-sm text-gray-300">固定价格</span>
+            </label>
+          </div>
+
+          {conditionType === 'MA' ? (
+            <select
+              value={maPeriod}
+              onChange={(e) => setMaPeriod(parseInt(e.target.value))}
+              className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded text-gray-300"
+            >
+              {MA_PERIODS.map((p) => (
+                <option key={p} value={p}>MA{p}</option>
+              ))}
+            </select>
+          ) : (
+            <input
+              type="number"
+              value={targetPrice}
+              onChange={(e) => setTargetPrice(e.target.value)}
+              placeholder="目标价格"
+              className="w-full px-3 py-2 bg-gray-900 border border-gray-700 rounded text-gray-300"
+              step="0.01"
+            />
+          )}
+          <p className="text-xs text-gray-600">触碰容差固定 0.3%，不可调节</p>
         </section>
 
         <div className="flex justify-end gap-3 pt-2">

@@ -3,35 +3,74 @@ import TrendChart from '@/components/views/TrendChart'
 import BaselineCapitalInput from '@/components/views/BaselineCapitalInput'
 import LoadingSkeleton from '@/components/common/LoadingSkeleton'
 import { useDashboard, useHoldings } from '@/hooks'
+import { snapshotApi } from '@/api'
 
-type Period = 'WEEK' | 'MONTH' | 'YEAR'
-const PERIODS: { value: Period; label: string }[] = [
+type PeriodMode = 'WEEK' | 'MONTH' | 'YEAR'
+const PERIODS: { value: PeriodMode; label: string }[] = [
   { value: 'WEEK', label: '本周' },
   { value: 'MONTH', label: '本月' },
   { value: 'YEAR', label: '本年' },
 ]
 
-export default function Dashboard() {
-  const [period, setPeriod] = useState<Period>('MONTH')
+function getPeriodStart(mode: PeriodMode): Date {
+  const now = new Date()
+  switch (mode) {
+    case 'WEEK': {
+      const day = now.getDay()
+      const diff = now.getDate() - day + (day === 0 ? -6 : 1)
+      return new Date(now.getFullYear(), now.getMonth(), diff)
+    }
+    case 'MONTH':
+      return new Date(now.getFullYear(), now.getMonth(), 1)
+    case 'YEAR':
+      return new Date(now.getFullYear(), 0, 1)
+  }
+}
 
-  const { data: dashboard, isLoading: dashboardLoading } = useDashboard()
+export default function Dashboard() {
+  const [period, setPeriod] = useState<PeriodMode>('MONTH')
+  const [generating, setGenerating] = useState(false)
+  const [genMsg, setGenMsg] = useState<string | null>(null)
+
+  const { data: dashboard, isLoading: dashboardLoading, refetch: refetchDashboard } = useDashboard()
   const { data: holdings, isLoading: holdingsLoading } = useHoldings()
 
-  const kpis = dashboard?.kpis
   const trendData = useMemo(() => {
     if (!dashboard?.trend || dashboard.trend.length === 0) return []
-    return dashboard.trend.map((t) => ({
-      date: t.date,
-      planCumulative: parseFloat((t.planReturnPercent ?? 0).toFixed(2)),
-      actualCumulative: parseFloat((t.actualReturnPercent ?? 0).toFixed(2)),
-    }))
-  }, [dashboard?.trend])
+    const start = getPeriodStart(period)
+    const startStr = start.toISOString().split('T')[0]
+    return dashboard.trend
+      .filter((t) => t.date >= startStr)
+      .map((t) => ({
+        date: t.date,
+        planCumulative: parseFloat((t.planReturnPercent ?? 0).toFixed(2)),
+        actualCumulative: parseFloat((t.actualReturnPercent ?? 0).toFixed(2)),
+      }))
+  }, [dashboard?.trend, period])
+
+  const kpis = dashboard?.kpis
 
   const planReturnPct = kpis?.planReturnPercent ?? 0
   const actualReturnPct = kpis?.actualReturnPercent ?? 0
   const gap = kpis?.holdingGap ?? 0
+  const isLoading = dashboardLoading
 
   const fmt = (n: number) => (n >= 0 ? `+${n.toFixed(2)}%` : `${n.toFixed(2)}%`)
+
+  const handleGenerateSnapshot = async () => {
+    setGenerating(true)
+    setGenMsg(null)
+    try {
+      const today = new Date().toISOString().split('T')[0]
+      const result = await snapshotApi.generate(today)
+      setGenMsg(`已生成快照（${result.planSnapshots} 条预案 + ${result.actualSnapshots} 条实盘）`)
+      await refetchDashboard()
+    } catch (e: unknown) {
+      setGenMsg(`生成失败: ${e instanceof Error ? e.message : String(e)}`)
+    } finally {
+      setGenerating(false)
+    }
+  }
 
   return (
     <div className="p-6 space-y-6">
@@ -50,21 +89,21 @@ export default function Dashboard() {
           value={fmt(planReturnPct)}
           valueColor={planReturnPct >= 0 ? 'text-green-400' : 'text-red-400'}
           sub={`预案资金 ¥${((holdings?.summary?.planTotalValue) ?? 0).toLocaleString('zh-CN', { maximumFractionDigits: 0 })}`}
-          loading={dashboardLoading}
+          loading={isLoading}
         />
         <KpiCard
           label="实盘收益"
           value={fmt(actualReturnPct)}
           valueColor={actualReturnPct >= 0 ? 'text-orange-400' : 'text-red-400'}
           sub={`实盘资金 ¥${((holdings?.summary?.actualTotalValue) ?? 0).toLocaleString('zh-CN', { maximumFractionDigits: 0 })}`}
-          loading={dashboardLoading}
+          loading={isLoading}
         />
         <KpiCard
           label="知行差"
           value={fmt(gap)}
           valueColor={gap >= 0 ? 'text-green-400' : 'text-red-400'}
           sub={gap >= 0 ? '预案更优' : '实盘更优'}
-          loading={dashboardLoading}
+          loading={isLoading}
         />
       </div>
 
@@ -72,7 +111,19 @@ export default function Dashboard() {
       <div className="bg-gray-900 border border-gray-800 rounded-lg p-4">
         <div className="flex items-center justify-between mb-4">
           <p className="text-sm font-medium text-gray-300">预案 vs 实盘 累计收益走势</p>
-          <div className="flex gap-1">
+          <div className="flex items-center gap-3">
+            {genMsg && (
+              <span className={`text-xs ${genMsg.includes('失败') ? 'text-red-400' : 'text-green-400'}`}>
+                {genMsg}
+              </span>
+            )}
+            <button
+              onClick={handleGenerateSnapshot}
+              disabled={generating}
+              className="px-3 py-1 text-xs rounded bg-gray-700 hover:bg-gray-600 disabled:opacity-50 text-gray-300 transition-colors"
+            >
+              {generating ? '生成中…' : '生成今日快照'}
+            </button>
             {PERIODS.map((p) => (
               <button
                 key={p.value}
@@ -88,11 +139,11 @@ export default function Dashboard() {
             ))}
           </div>
         </div>
-        {!dashboardLoading && trendData.length > 0 ? (
+        {!isLoading && trendData.length > 0 ? (
           <TrendChart data={trendData} />
         ) : (
           <div className="h-64 flex items-center justify-center text-gray-600 text-sm">
-            {dashboardLoading ? '加载中…' : '暂无走势数据'}
+            {isLoading ? '加载中…' : '暂无走势数据'}
           </div>
         )}
       </div>

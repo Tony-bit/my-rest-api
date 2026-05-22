@@ -2,7 +2,7 @@ package com.example.myapi.dto;
 
 import com.example.myapi.entity.PlanCycle;
 import com.example.myapi.entity.PlanStatus;
-import com.example.myapi.entity.TradeDirection;
+import com.example.myapi.entity.PlanType;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -36,6 +36,9 @@ public class PlanDTO {
         @NotNull(message = "周期不能为空")
         private PlanCycle cycle;
 
+        @NotNull(message = "预案类型不能为空")
+        private PlanType planType;
+
         private LocalDate validUntil;
 
         private LocalDate triggerDate;
@@ -43,7 +46,28 @@ public class PlanDTO {
         private BigDecimal executionQuantity;
 
         @Valid
-        private List<ConditionDTO.CreateRequest> conditions;
+        private ConditionDTO.CreateRequest condition;
+    }
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
+    public static class CreateSellPlanRequest {
+        @NotNull(message = "关联的买入预案ID不能为空")
+        private Long buyPlanId;
+
+        @NotBlank(message = "预案名称不能为空")
+        @Size(max = 100, message = "预案名称不能超过100字符")
+        private String name;
+
+        @NotNull(message = "周期不能为空")
+        private PlanCycle cycle;
+
+        private LocalDate validUntil;
+
+        @Valid
+        private ConditionDTO.CreateRequest condition;
     }
 
     @Data
@@ -59,8 +83,10 @@ public class PlanDTO {
 
         private PlanCycle cycle;
         private LocalDate validUntil;
-        private LocalDate triggerDate;
         private BigDecimal executionQuantity;
+
+        @Valid
+        private ConditionDTO.CreateRequest condition;
     }
 
     @Data
@@ -73,12 +99,14 @@ public class PlanDTO {
         private String stockCode;
         private String stockName;
         private PlanCycle cycle;
+        private PlanType planType;
         private PlanStatus status;
-        private Boolean isLocked;
+        private Long tradePlanId;
+        private Long buyPlanId;
         private LocalDate validUntil;
         private LocalDate triggerDate;
         private BigDecimal executionQuantity;
-        private List<ConditionDTO.Response> conditions;
+        private ConditionDTO.Response condition;
         private java.time.LocalDateTime createdAt;
         private java.time.LocalDateTime updatedAt;
     }
@@ -93,8 +121,9 @@ public class PlanDTO {
         private String stockCode;
         private String stockName;
         private PlanCycle cycle;
+        private PlanType planType;
         private PlanStatus status;
-        private Boolean isLocked;
+        private Long tradePlanId;
         private LocalDate validUntil;
         private LocalDate triggerDate;
         private java.time.LocalDateTime createdAt;

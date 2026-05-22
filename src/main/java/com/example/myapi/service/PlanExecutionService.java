@@ -3,7 +3,7 @@ package com.example.myapi.service;
 import com.example.myapi.entity.Plan;
 import com.example.myapi.entity.PlanExecution;
 import com.example.myapi.entity.PlanStatus;
-import com.example.myapi.entity.TradeDirection;
+import com.example.myapi.entity.PlanType;
 import com.example.myapi.exception.BusinessException;
 import com.example.myapi.repository.PlanExecutionRepository;
 import com.example.myapi.repository.PlanRepository;
@@ -34,11 +34,11 @@ public class PlanExecutionService {
     }
 
     @Transactional
-    public PlanExecution recordExecution(Plan plan, TradeDirection direction, BigDecimal triggerPrice,
-                                         BigDecimal closePrice, BigDecimal maValue, Long conditionId) {
+    public PlanExecution recordExecution(Plan plan, BigDecimal triggerPrice,
+                                         BigDecimal closePrice, BigDecimal maValue, PlanExecution linkedExecution) {
         BigDecimal tradeAmount = triggerPrice.multiply(plan.getExecutionQuantity());
 
-        if (direction == TradeDirection.BUY) {
+        if (plan.getPlanType() == PlanType.BUY) {
             BigDecimal currentBalance = systemConfigService.getPlanAccount().getCashBalance();
             if (tradeAmount.compareTo(currentBalance) > 0) {
                 throw new BusinessException(
@@ -48,7 +48,7 @@ public class PlanExecutionService {
             systemConfigService.deductPlanCashBalance(tradeAmount);
             log.info("PlanAccount cashBalance deducted: amount={}, remaining={}",
                     tradeAmount, currentBalance.subtract(tradeAmount));
-        } else if (direction == TradeDirection.SELL) {
+        } else if (plan.getPlanType() == PlanType.SELL) {
             systemConfigService.addPlanCashBalance(tradeAmount);
             log.info("PlanAccount cashBalance added: amount={}", tradeAmount);
         }
@@ -56,22 +56,17 @@ public class PlanExecutionService {
         PlanExecution execution = PlanExecution.builder()
                 .plan(plan)
                 .tradeDate(LocalDate.now())
-                .direction(direction)
                 .triggered(true)
                 .triggerPrice(triggerPrice)
                 .closePrice(closePrice)
                 .maValue(maValue)
+                .linkedExecution(linkedExecution)
                 .executed(true)
                 .build();
-        if (conditionId != null) {
-            execution.setCondition(plan.getConditions().stream()
-                    .filter(c -> c.getId().equals(conditionId))
-                    .findFirst()
-                    .orElse(null));
-        }
+
         PlanExecution saved = executionRepository.save(execution);
-        log.info("Recorded execution id={} planId={} direction={} price={}",
-                saved.getId(), plan.getId(), direction, triggerPrice);
+        log.info("Recorded execution id={} planId={} planType={} price={}",
+                saved.getId(), plan.getId(), plan.getPlanType(), triggerPrice);
         return saved;
     }
 
@@ -79,7 +74,6 @@ public class PlanExecutionService {
     public void transitionState(Plan plan, PlanStatus newStatus) {
         if (newStatus == PlanStatus.HOLDING) {
             plan.setStatus(PlanStatus.HOLDING);
-            plan.setIsLocked(true);
         } else if (newStatus == PlanStatus.CLOSED) {
             plan.setStatus(PlanStatus.CLOSED);
         }
@@ -87,17 +81,27 @@ public class PlanExecutionService {
         log.info("Plan id={} transitioned to status={}", plan.getId(), newStatus);
     }
 
+    @Transactional
+    public void closeBuyPlan(Plan sellPlan) {
+        Plan buyPlan = sellPlan.getBuyPlan();
+        if (buyPlan != null && buyPlan.getStatus() == PlanStatus.HOLDING) {
+            buyPlan.setStatus(PlanStatus.CLOSED);
+            planRepository.save(buyPlan);
+            log.info("Buy plan id={} closed due to sell plan id={} execution", buyPlan.getId(), sellPlan.getId());
+        }
+    }
+
     @Transactional(readOnly = true)
     public BigDecimal calculateCurrentReturn(Plan plan, BigDecimal currentPrice) {
-        List<PlanExecution> buys = executionRepository.findByPlanId(plan.getId()).stream()
-                .filter(e -> e.getDirection() == TradeDirection.BUY && e.getTriggered())
+        List<PlanExecution> buyExecutions = executionRepository.findByPlanId(plan.getId()).stream()
+                .filter(e -> e.getPlan().getPlanType() == PlanType.BUY && e.getTriggered())
                 .toList();
-        if (buys.isEmpty()) return BigDecimal.ZERO;
+        if (buyExecutions.isEmpty()) return BigDecimal.ZERO;
 
-        BigDecimal totalCost = buys.stream()
-                .map(e -> e.getTriggerPrice())
+        BigDecimal totalCost = buyExecutions.stream()
+                .map(PlanExecution::getTriggerPrice)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
-        BigDecimal avgCost = totalCost.divide(BigDecimal.valueOf(buys.size()), 4, java.math.RoundingMode.HALF_UP);
+        BigDecimal avgCost = totalCost.divide(BigDecimal.valueOf(buyExecutions.size()), 4, java.math.RoundingMode.HALF_UP);
 
         return currentPrice.subtract(avgCost).divide(avgCost, 4, java.math.RoundingMode.HALF_UP)
                 .multiply(BigDecimal.valueOf(100));

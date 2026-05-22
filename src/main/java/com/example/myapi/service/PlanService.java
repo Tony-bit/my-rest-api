@@ -5,6 +5,7 @@ import com.example.myapi.dto.PlanDTO;
 import com.example.myapi.entity.Plan;
 import com.example.myapi.entity.PlanCondition;
 import com.example.myapi.entity.PlanStatus;
+import com.example.myapi.entity.PlanType;
 import com.example.myapi.exception.BusinessException;
 import com.example.myapi.repository.PlanRepository;
 import lombok.RequiredArgsConstructor;
@@ -13,7 +14,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -37,21 +37,69 @@ public class PlanService {
                 .stockCode(request.getStockCode())
                 .stockName(request.getStockName())
                 .cycle(request.getCycle())
+                .planType(request.getPlanType())
                 .validUntil(request.getValidUntil())
                 .triggerDate(request.getTriggerDate() != null ? request.getTriggerDate() : LocalDate.now())
                 .executionQuantity(request.getExecutionQuantity())
                 .build();
 
-        if (request.getConditions() != null) {
-            for (ConditionDTO.CreateRequest condReq : request.getConditions()) {
-                validateCondition(condReq);
-                PlanCondition cond = mapToCondition(condReq);
-                plan.addCondition(cond);
-            }
+        if (request.getCondition() != null) {
+            validateCondition(request.getCondition());
+            PlanCondition cond = mapToCondition(request.getCondition());
+            plan.addCondition(cond);
         }
 
         Plan saved = planRepository.save(plan);
-        log.info("Created plan id={} stockCode={}", saved.getId(), saved.getStockCode());
+
+        if (saved.getPlanType() == PlanType.BUY) {
+            saved.setTradePlanId(saved.getId());
+            saved = planRepository.save(saved);
+        }
+
+        log.info("Created plan id={} stockCode={} planType={}", saved.getId(), saved.getStockCode(), saved.getPlanType());
+        return toResponse(saved);
+    }
+
+    @Transactional
+    public PlanDTO.Response createSellPlan(PlanDTO.CreateSellPlanRequest request) {
+        Plan buyPlan = planRepository.findById(request.getBuyPlanId())
+                .orElseThrow(() -> new BusinessException("关联的买入预案不存在", 404));
+
+        if (buyPlan.getPlanType() != PlanType.BUY) {
+            throw new BusinessException("关联的预案必须是买入预案", 400);
+        }
+
+        if (buyPlan.getStatus() != PlanStatus.HOLDING) {
+            throw new BusinessException("关联的买入预案尚未建仓，无法创建卖出预案", 400);
+        }
+
+        boolean hasActiveSellPlan = planRepository
+                .findByPlanTypeAndStatusNot(PlanType.SELL, PlanStatus.EXPIRED)
+                .stream()
+                .anyMatch(p -> p.getTradePlanId() != null && p.getTradePlanId().equals(buyPlan.getId()));
+        if (hasActiveSellPlan) {
+            throw new BusinessException("该买入预案已存在有效的卖出预案，需先等其过期", 409);
+        }
+
+        validateCondition(request.getCondition());
+
+        Plan sellPlan = Plan.builder()
+                .name(request.getName())
+                .stockCode(buyPlan.getStockCode())
+                .stockName(buyPlan.getStockName())
+                .cycle(request.getCycle())
+                .planType(PlanType.SELL)
+                .tradePlanId(buyPlan.getId())
+                .buyPlan(buyPlan)
+                .executionQuantity(buyPlan.getExecutionQuantity())
+                .validUntil(request.getValidUntil())
+                .build();
+
+        PlanCondition cond = mapToCondition(request.getCondition());
+        sellPlan.addCondition(cond);
+
+        Plan saved = planRepository.save(sellPlan);
+        log.info("Created sell plan id={} linked to buyPlanId={}", saved.getId(), buyPlan.getId());
         return toResponse(saved);
     }
 
@@ -61,10 +109,10 @@ public class PlanService {
     }
 
     @Transactional(readOnly = true)
-    public List<PlanDTO.ListResponse> list(PlanStatus status, String stockCode, LocalDate triggerDate) {
+    public List<PlanDTO.ListResponse> list(PlanStatus status, String stockCode, Long tradePlanId) {
         List<Plan> plans;
-        if (triggerDate != null) {
-            plans = planRepository.findByTriggerDateAndStatus(triggerDate, PlanStatus.PENDING);
+        if (tradePlanId != null) {
+            plans = planRepository.findByTradePlanId(tradePlanId);
         } else if (status != null && stockCode != null) {
             plans = planRepository.findByStatusAndStockCode(status, stockCode);
         } else if (status != null) {
@@ -80,14 +128,28 @@ public class PlanService {
     @Transactional
     public PlanDTO.Response update(Long id, PlanDTO.UpdateRequest request) {
         Plan plan = findPlanById(id);
-        if (plan.getStatus() != PlanStatus.PENDING) {
-            throw new BusinessException("只有 PENDING 状态的预案可以编辑", 409);
+        if (plan.getStatus() == PlanStatus.CLOSED || plan.getStatus() == PlanStatus.EXPIRED) {
+            throw new BusinessException("CLOSED 和 EXPIRED 状态的预案不可编辑", 409);
         }
         if (request.getName() != null) plan.setName(request.getName());
         if (request.getStockName() != null) plan.setStockName(request.getStockName());
         if (request.getCycle() != null) plan.setCycle(request.getCycle());
         if (request.getValidUntil() != null) plan.setValidUntil(request.getValidUntil());
         if (request.getExecutionQuantity() != null) plan.setExecutionQuantity(request.getExecutionQuantity());
+
+        if (request.getCondition() != null) {
+            validateCondition(request.getCondition());
+            if (plan.getConditions().isEmpty()) {
+                PlanCondition newCond = mapToCondition(request.getCondition());
+                plan.addCondition(newCond);
+            } else {
+                PlanCondition existingCond = plan.getConditions().get(0);
+                existingCond.setConditionType(request.getCondition().getConditionType());
+                existingCond.setMaPeriod(request.getCondition().getMaPeriod());
+                existingCond.setTargetPrice(request.getCondition().getTargetPrice());
+            }
+        }
+
         Plan saved = planRepository.save(plan);
         log.info("Updated plan id={}", id);
         return toResponse(saved);
@@ -105,7 +167,17 @@ public class PlanService {
 
     @Transactional(readOnly = true)
     public List<Plan> findActivePlans() {
-        return planRepository.findByStatusIn(Arrays.asList(PlanStatus.PENDING, PlanStatus.HOLDING));
+        return planRepository.findByStatusIn(List.of(PlanStatus.PENDING, PlanStatus.HOLDING));
+    }
+
+    @Transactional(readOnly = true)
+    public List<Plan> findPendingBuyPlans() {
+        return planRepository.findByPlanTypeAndStatus(PlanType.BUY, PlanStatus.PENDING);
+    }
+
+    @Transactional(readOnly = true)
+    public List<Plan> findPendingSellPlans() {
+        return planRepository.findByPlanTypeAndStatus(PlanType.SELL, PlanStatus.PENDING);
     }
 
     public Plan findPlanById(Long id) {
@@ -114,8 +186,8 @@ public class PlanService {
     }
 
     private void validateCondition(ConditionDTO.CreateRequest request) {
-        if (request.getConditionType() == null || request.getDirection() == null) {
-            throw new BusinessException("conditionType 和 direction 不能为空");
+        if (request.getConditionType() == null) {
+            throw new BusinessException("conditionType 不能为空");
         }
         if (request.getConditionType() == com.example.myapi.entity.ConditionType.MA) {
             if (request.getMaPeriod() == null || !VALID_MA_PERIODS.contains(request.getMaPeriod())) {
@@ -140,27 +212,30 @@ public class PlanService {
     private PlanCondition mapToCondition(ConditionDTO.CreateRequest request) {
         return PlanCondition.builder()
                 .conditionType(request.getConditionType())
-                .direction(request.getDirection())
                 .maPeriod(request.getMaPeriod())
                 .targetPrice(request.getTargetPrice())
                 .build();
     }
 
     private PlanDTO.Response toResponse(Plan plan) {
+        ConditionDTO.Response condResponse = null;
+        if (!plan.getConditions().isEmpty()) {
+            condResponse = ConditionDTO.Response.toResponse(plan.getConditions().get(0));
+        }
         return PlanDTO.Response.builder()
                 .id(plan.getId())
                 .name(plan.getName())
                 .stockCode(plan.getStockCode())
                 .stockName(plan.getStockName())
                 .cycle(plan.getCycle())
+                .planType(plan.getPlanType())
                 .status(plan.getStatus())
-                .isLocked(plan.getIsLocked())
+                .tradePlanId(plan.getTradePlanId())
+                .buyPlanId(plan.getBuyPlan() != null ? plan.getBuyPlan().getId() : null)
                 .validUntil(plan.getValidUntil())
                 .triggerDate(plan.getTriggerDate())
                 .executionQuantity(plan.getExecutionQuantity())
-                .conditions(plan.getConditions().stream()
-                        .map(ConditionDTO.Response::toResponse)
-                        .collect(Collectors.toList()))
+                .condition(condResponse)
                 .createdAt(plan.getCreatedAt())
                 .updatedAt(plan.getUpdatedAt())
                 .build();
@@ -173,8 +248,9 @@ public class PlanService {
                 .stockCode(plan.getStockCode())
                 .stockName(plan.getStockName())
                 .cycle(plan.getCycle())
+                .planType(plan.getPlanType())
                 .status(plan.getStatus())
-                .isLocked(plan.getIsLocked())
+                .tradePlanId(plan.getTradePlanId())
                 .validUntil(plan.getValidUntil())
                 .triggerDate(plan.getTriggerDate())
                 .createdAt(plan.getCreatedAt())

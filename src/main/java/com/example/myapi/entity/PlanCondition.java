@@ -6,8 +6,7 @@ import java.math.BigDecimal;
 
 @Entity
 @Table(name = "plan_condition", indexes = {
-    @Index(name = "idx_cond_plan", columnList = "plan_id"),
-    @Index(name = "idx_cond_direction", columnList = "direction")
+    @Index(name = "idx_cond_plan", columnList = "plan_id")
 })
 @Getter
 @Setter
@@ -27,10 +26,6 @@ public class PlanCondition {
     @Enumerated(EnumType.STRING)
     @Column(name = "condition_type", nullable = false, length = 20)
     private ConditionType conditionType;
-
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 10)
-    private TradeDirection direction;
 
     @Column(name = "ma_period")
     private Integer maPeriod;

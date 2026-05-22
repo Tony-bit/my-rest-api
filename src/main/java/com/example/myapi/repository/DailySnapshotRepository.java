@@ -21,4 +21,8 @@ public interface DailySnapshotRepository extends JpaRepository<DailySnapshot, Lo
     @Modifying
     @Query("DELETE FROM DailySnapshot d WHERE d.snapshotDate < :cutoffDate")
     int deleteBySnapshotDateBefore(@Param("cutoffDate") LocalDate cutoffDate);
+
+    void deleteByPlanIdAndSnapshotDate(Long planId, LocalDate snapshotDate);
+
+    void deleteByActualTradeIdAndSnapshotDate(Long actualTradeId, LocalDate snapshotDate);
 }

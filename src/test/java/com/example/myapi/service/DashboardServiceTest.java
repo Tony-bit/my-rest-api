@@ -136,9 +136,9 @@ class DashboardServiceTest {
                 .actualHoldings(List.of())
                 .build();
 
-        Plan plan = TestFixtures.planBuilder().id(1L).name("测试预案").status(PlanStatus.HOLDING).build();
+        Plan plan = TestFixtures.planBuilder().id(1L).name("测试预案").status(PlanStatus.HOLDING).planType(PlanType.BUY).build();
         PlanExecution exec = TestFixtures.executionBuilder()
-                .id(1L).plan(plan).direction(TradeDirection.BUY)
+                .id(1L).plan(plan)
                 .triggerPrice(new BigDecimal("10.00"))
                 .tradeDate(LocalDate.of(2026, 5, 15))
                 .build();

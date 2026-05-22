@@ -2,16 +2,15 @@ export type Period = 'WEEK' | 'MONTH' | 'YEAR'
 export type PlanStatus = 'PENDING' | 'HOLDING' | 'CLOSED' | 'EXPIRED'
 export type Cycle = 'DAILY' | 'WEEKLY' | 'MONTHLY'
 export type ConditionType = 'PRICE' | 'MA'
+export type PlanType = 'BUY' | 'SELL'
 export type Direction = 'BUY' | 'SELL'
 
 export interface PlanCondition {
   id: number
   planId: number
   conditionType: ConditionType
-  direction: Direction
   maPeriod?: number
   targetPrice?: number
-  isActive?: boolean
 }
 
 export interface Plan {
@@ -20,14 +19,16 @@ export interface Plan {
   stockCode: string
   stockName: string
   cycle: Cycle
+  planType: PlanType
   status: PlanStatus
-  isLocked: boolean
+  tradePlanId?: number
+  buyPlanId?: number
   validUntil: string
   triggerDate?: string
   executionQuantity: number
+  condition?: PlanCondition
   createdAt: string
   updatedAt: string
-  conditions: PlanCondition[]
 }
 
 export interface PlanListItem {
@@ -36,8 +37,10 @@ export interface PlanListItem {
   stockCode: string
   stockName: string
   cycle: Cycle
+  planType: PlanType
   status: PlanStatus
-  isLocked: boolean
+  tradePlanId?: number
+  buyPlanId?: number
   validUntil: string
   triggerDate?: string
   createdAt: string

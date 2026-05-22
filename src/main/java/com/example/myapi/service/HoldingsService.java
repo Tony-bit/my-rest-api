@@ -16,22 +16,6 @@ import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.stream.Collectors;
 
-import com.example.myapi.dto.ViewDTO;
-import com.example.myapi.entity.*;
-import com.example.myapi.repository.*;
-import com.example.myapi.service.TushareService.KLineData;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-
-import java.math.BigDecimal;
-import java.math.RoundingMode;
-import java.time.LocalDate;
-import java.time.temporal.ChronoUnit;
-import java.util.*;
-import java.util.stream.Collectors;
-
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -64,7 +48,7 @@ public class HoldingsService {
             KLineData kData = kDataOpt.get();
 
             List<PlanExecution> buys = executionRepository.findByPlanId(plan.getId()).stream()
-                    .filter(e -> e.getDirection() == TradeDirection.BUY)
+                    .filter(e -> e.getPlan().getPlanType() == PlanType.BUY)
                     .toList();
             if (buys.isEmpty()) continue;
 

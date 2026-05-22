@@ -3,7 +3,7 @@ package com.example.myapi.service;
 import com.example.myapi.config.TushareConfig;
 import com.example.myapi.entity.ConditionType;
 import com.example.myapi.entity.PlanCondition;
-import com.example.myapi.entity.TradeDirection;
+import com.example.myapi.entity.PlanType;
 import com.example.myapi.service.TushareService.KLineData;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -13,7 +13,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 
-import java.lang.reflect.Method;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 
@@ -24,8 +23,7 @@ import static org.mockito.Mockito.*;
 @MockitoSettings(strictness = Strictness.LENIENT)
 class TushareServiceTest {
 
-    @Mock
-    private TushareConfig tushareConfig;
+    @Mock private TushareConfig tushareConfig;
 
     private TushareService service;
 
@@ -59,143 +57,164 @@ class TushareServiceTest {
         assertEquals(new BigDecimal("12.0000"), ma);
     }
 
-    // 1.3 evaluateCondition
-
     @Test
     void evaluateCondition_priceBuy_triggers() {
         PlanCondition cond = TestFixtures.conditionBuilder()
                 .conditionType(ConditionType.PRICE)
-                .direction(TradeDirection.BUY)
                 .targetPrice(new BigDecimal("10.00"))
                 .build();
         KLineData kd = TestFixtures.kLineBuilder().close(new BigDecimal("11.00")).build();
 
-        assertTrue(service.evaluateCondition(cond, kd, null));
+        assertTrue(service.evaluateCondition(cond, PlanType.BUY, kd, null));
     }
 
     @Test
     void evaluateCondition_priceBuy_notTriggers() {
         PlanCondition cond = TestFixtures.conditionBuilder()
                 .conditionType(ConditionType.PRICE)
-                .direction(TradeDirection.BUY)
                 .targetPrice(new BigDecimal("12.00"))
                 .build();
         KLineData kd = TestFixtures.kLineBuilder().close(new BigDecimal("11.00")).build();
 
-        assertFalse(service.evaluateCondition(cond, kd, null));
+        assertFalse(service.evaluateCondition(cond, PlanType.BUY, kd, null));
     }
 
     @Test
     void evaluateCondition_priceSell_triggers() {
         PlanCondition cond = TestFixtures.conditionBuilder()
                 .conditionType(ConditionType.PRICE)
-                .direction(TradeDirection.SELL)
                 .targetPrice(new BigDecimal("12.00"))
                 .build();
         KLineData kd = TestFixtures.kLineBuilder().close(new BigDecimal("11.00")).build();
 
-        assertTrue(service.evaluateCondition(cond, kd, null));
+        assertTrue(service.evaluateCondition(cond, PlanType.SELL, kd, null));
     }
 
     @Test
     void evaluateCondition_priceSell_notTriggers() {
         PlanCondition cond = TestFixtures.conditionBuilder()
                 .conditionType(ConditionType.PRICE)
-                .direction(TradeDirection.SELL)
                 .targetPrice(new BigDecimal("10.00"))
                 .build();
         KLineData kd = TestFixtures.kLineBuilder().close(new BigDecimal("11.00")).build();
 
-        assertFalse(service.evaluateCondition(cond, kd, null));
+        assertFalse(service.evaluateCondition(cond, PlanType.SELL, kd, null));
     }
 
     @Test
     void evaluateCondition_maBuy_triggers() {
         PlanCondition cond = TestFixtures.conditionBuilder()
                 .conditionType(ConditionType.MA)
-                .direction(TradeDirection.BUY)
                 .maPeriod(5)
                 .build();
         KLineData kd = TestFixtures.kLineBuilder().close(new BigDecimal("11.033")).build();
 
-        assertTrue(service.evaluateCondition(cond, kd, new BigDecimal("11.00")));
-        // 触碰型: |11.033 - 11.00| / 11.033 = 0.3% 刚好触发
+        assertTrue(service.evaluateCondition(cond, PlanType.BUY, kd, new BigDecimal("11.00")));
     }
 
     @Test
     void evaluateCondition_maBuy_notTriggers() {
         PlanCondition cond = TestFixtures.conditionBuilder()
                 .conditionType(ConditionType.MA)
-                .direction(TradeDirection.BUY)
+                .maPeriod(5)
                 .build();
         KLineData kd = TestFixtures.kLineBuilder().close(new BigDecimal("11.04")).build();
 
-        assertFalse(service.evaluateCondition(cond, kd, new BigDecimal("11.00")));
-        // 触碰型: |11.04 - 11.00| / 11.04 = 0.36% 超过 0.3% 不触发
+        assertFalse(service.evaluateCondition(cond, PlanType.BUY, kd, new BigDecimal("11.00")));
     }
 
     @Test
     void evaluateCondition_maSell_triggers() {
         PlanCondition cond = TestFixtures.conditionBuilder()
                 .conditionType(ConditionType.MA)
-                .direction(TradeDirection.SELL)
+                .maPeriod(5)
                 .build();
         KLineData kd = TestFixtures.kLineBuilder().close(new BigDecimal("10.97")).build();
 
-        assertTrue(service.evaluateCondition(cond, kd, new BigDecimal("11.00")));
-        // 触碰型: |10.97 - 11.00| / 10.97 = 0.273% <= 0.3% 触发
+        assertTrue(service.evaluateCondition(cond, PlanType.SELL, kd, new BigDecimal("11.00")));
     }
 
     @Test
     void evaluateCondition_maSell_notTriggers() {
         PlanCondition cond = TestFixtures.conditionBuilder()
                 .conditionType(ConditionType.MA)
-                .direction(TradeDirection.SELL)
+                .maPeriod(5)
                 .build();
         KLineData kd = TestFixtures.kLineBuilder().close(new BigDecimal("10.93")).build();
 
-        assertFalse(service.evaluateCondition(cond, kd, new BigDecimal("11.00")));
-        // 触碰型: |10.93 - 11.00| / 10.93 = 0.64% 超过 0.3% 不触发
+        assertFalse(service.evaluateCondition(cond, PlanType.SELL, kd, new BigDecimal("11.00")));
     }
 
     @Test
     void evaluateCondition_maWithNullMaValue_notTriggers() {
         PlanCondition cond = TestFixtures.conditionBuilder()
                 .conditionType(ConditionType.MA)
-                .direction(TradeDirection.BUY)
+                .maPeriod(5)
                 .build();
         KLineData kd = TestFixtures.kLineBuilder().close(new BigDecimal("12.00")).build();
 
-        assertFalse(service.evaluateCondition(cond, kd, null));
+        assertFalse(service.evaluateCondition(cond, PlanType.BUY, kd, null));
     }
 
     @Test
-    void evaluateCondition_maBuy_boundaryWithinTolerance_triggers() {
+    void evaluateCondition_maBuy_boundaryEquals_triggers() {
         PlanCondition cond = TestFixtures.conditionBuilder()
                 .conditionType(ConditionType.MA)
-                .direction(TradeDirection.BUY)
+                .maPeriod(5)
                 .build();
         KLineData kd = TestFixtures.kLineBuilder().close(new BigDecimal("11.00")).build();
 
-        assertTrue(service.evaluateCondition(cond, kd, new BigDecimal("11.00")));
-        // 触碰型: |11.00 - 11.00| / 11.00 = 0% <= 0.3% 触发
+        assertTrue(service.evaluateCondition(cond, PlanType.BUY, kd, new BigDecimal("11.00")));
     }
 
     @Test
     void evaluateCondition_priceBuy_boundaryEquals_triggers() {
         PlanCondition cond = TestFixtures.conditionBuilder()
                 .conditionType(ConditionType.PRICE)
-                .direction(TradeDirection.BUY)
                 .targetPrice(new BigDecimal("10.00"))
                 .build();
         KLineData kd = TestFixtures.kLineBuilder().close(new BigDecimal("10.00")).build();
 
-        assertTrue(service.evaluateCondition(cond, kd, null));
+        assertTrue(service.evaluateCondition(cond, PlanType.BUY, kd, null));
     }
 
     @Test
     void isTradingDay_noToken_returnsTrue() {
         when(tushareConfig.getToken()).thenReturn("");
         assertTrue(service.isTradingDay(LocalDate.of(2026, 5, 21)));
+    }
+
+    // ========== normalizeStockCode tests ==========
+
+    @Test
+    void normalizeStockCode_alreadyHasSuffix_returnsAsIs() {
+        assertEquals("600000.SH", service.normalizeStockCode("600000.SH"));
+        assertEquals("000001.SZ", service.normalizeStockCode("000001.SZ"));
+    }
+
+    @Test
+    void normalizeStockCode_startsWith6_addsSH() {
+        assertEquals("600000.SH", service.normalizeStockCode("600000"));
+    }
+
+    @Test
+    void normalizeStockCode_startsWith0_addsSZ() {
+        assertEquals("000001.SZ", service.normalizeStockCode("000001"));
+    }
+
+    @Test
+    void normalizeStockCode_startsWith3_addsSZ() {
+        assertEquals("300001.SZ", service.normalizeStockCode("300001"));
+    }
+
+    @Test
+    void normalizeStockCode_nullOrBlank_returnsAsIs() {
+        assertNull(service.normalizeStockCode(null));
+        assertEquals("  ", service.normalizeStockCode("  "));
+    }
+
+    @Test
+    void normalizeStockCode_unknownPrefix_noSuffix() {
+        assertEquals("123456", service.normalizeStockCode("123456"));
     }
 }

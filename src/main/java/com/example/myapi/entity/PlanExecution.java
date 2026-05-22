@@ -9,8 +9,7 @@ import java.time.LocalDateTime;
 @Entity
 @Table(name = "plan_execution", indexes = {
     @Index(name = "idx_exec_plan", columnList = "plan_id"),
-    @Index(name = "idx_exec_date", columnList = "trade_date"),
-    @Index(name = "idx_exec_direction", columnList = "direction")
+    @Index(name = "idx_exec_date", columnList = "trade_date")
 })
 @Getter
 @Setter
@@ -30,10 +29,6 @@ public class PlanExecution {
     @Column(name = "trade_date", nullable = false)
     private LocalDate tradeDate;
 
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 10)
-    private TradeDirection direction;
-
     @Column(name = "triggered", nullable = false)
     @Builder.Default
     private Boolean triggered = true;
@@ -48,8 +43,8 @@ public class PlanExecution {
     private BigDecimal maValue;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "condition_id")
-    private PlanCondition condition;
+    @JoinColumn(name = "linked_execution_id")
+    private PlanExecution linkedExecution;
 
     @Column(nullable = false)
     @Builder.Default

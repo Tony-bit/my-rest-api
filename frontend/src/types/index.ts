@@ -1,7 +1,7 @@
 export * from './api'
 export * from './systemConfig'
 export * from './account'
-export { type Plan, type PlanCondition, type PlanListItem, type PlanStatus, type Cycle, type ConditionType, type Direction } from './plan'
+export { type Plan, type PlanCondition, type PlanListItem, type PlanStatus, type Cycle, type ConditionType, type Direction, type PlanType } from './plan'
 export type { CreatePlanRequest, UpdatePlanRequest, CreateConditionRequest, UpdateConditionRequest } from '../api/plan'
 export * from './actualTrade'
 export * from './view'

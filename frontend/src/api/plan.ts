@@ -2,7 +2,7 @@ import client from './client'
 import type { ApiResponse, Plan, PlanCondition } from '@/types'
 
 export const planApi = {
-  list: (params?: { status?: string; stockCode?: string }) =>
+  list: (params?: { status?: string; stockCode?: string; tradePlanId?: number }) =>
     client
       .get<ApiResponse<Plan[]>>('/plans', { params })
       .then((r) => r.data.data),
@@ -12,6 +12,9 @@ export const planApi = {
 
   create: (data: CreatePlanRequest) =>
     client.post<ApiResponse<Plan>>('/plans', data).then((r) => r.data.data),
+
+  createSellPlan: (data: CreateSellPlanRequest) =>
+    client.post<ApiResponse<Plan>>('/plans/sell', data).then((r) => r.data.data),
 
   update: (id: number, data: UpdatePlanRequest) =>
     client.put<ApiResponse<Plan>>(`/plans/${id}`, data).then((r) => r.data.data),
@@ -67,31 +70,37 @@ export interface CreatePlanRequest {
   stockCode: string
   stockName: string
   cycle: string
+  planType: 'BUY' | 'SELL'
   validUntil: string
   executionQuantity: number
-  conditions: CreateConditionRequest[]
+  condition?: CreateConditionRequest
+}
+
+export interface CreateSellPlanRequest {
+  buyPlanId: number
+  name: string
+  cycle: string
+  validUntil: string
+  condition?: CreateConditionRequest
 }
 
 export interface UpdatePlanRequest {
-  name: string
-  stockCode: string
-  stockName: string
-  cycle: string
-  validUntil: string
-  executionQuantity: number
+  name?: string
+  stockName?: string
+  cycle?: string
+  validUntil?: string
+  executionQuantity?: number
+  condition?: CreateConditionRequest
 }
 
 export interface CreateConditionRequest {
   conditionType: 'PRICE' | 'MA'
-  direction: 'BUY' | 'SELL'
   maPeriod?: number
   targetPrice?: number
 }
 
 export interface UpdateConditionRequest {
-  conditionType: 'PRICE' | 'MA'
-  direction: 'BUY' | 'SELL'
+  conditionType?: 'PRICE' | 'MA'
   maPeriod?: number | null
   targetPrice?: number | null
-  isActive?: boolean
 }

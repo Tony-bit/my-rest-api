@@ -10,12 +10,11 @@ export interface PlanExecution {
   id: number
   planId: number
   tradeDate: string
-  direction: 'BUY' | 'SELL'
   triggered: boolean
   triggerPrice: number
   closePrice?: number
   maValue?: number
-  quantity: number
   executed: boolean
+  linkedExecutionId?: number
   createdAt: string
 }
