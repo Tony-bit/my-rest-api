@@ -1,0 +1,56 @@
+# ============================================
+# 多阶段构建 - 优化生产镜像
+# ============================================
+
+# 阶段1：构建阶段
+FROM eclipse-temurin:17-jdk-alpine AS builder
+
+WORKDIR /app
+
+# 安装构建工具
+RUN apk add --no-cache maven
+
+# 复制依赖文件先下载，提升构建缓存
+COPY pom.xml .
+RUN mvn dependency:go-offline -B
+
+# 复制源代码并构建
+COPY src ./src
+RUN mvn clean package -DskipTests
+
+# 提取 JAR 文件
+RUN mkdir -p target/dependency && \
+    java -Djarmode=layertools -jar target/*.jar extract --destination target/dependency
+
+# ============================================
+# 阶段2：运行阶段 (精简 JRE)
+# ============================================
+FROM eclipse-temurin:17-jre-alpine
+
+# 安全增强：创建非 root 用户
+RUN addgroup -g 1001 -S appgroup && \
+    adduser -u 1001 -S appuser -G appgroup
+
+WORKDIR /app
+
+# 从构建阶段复制分层依赖
+COPY --from=builder /app/target/dependency/BOOT-INF/lib ./lib
+COPY --from=builder /app/target/dependency/META-INF ./META-INF
+COPY --from=builder /app/target/dependency/BOOT-INF/classes ./classes
+
+# 设置文件权限
+RUN chown -R appuser:appgroup /app
+
+# 切换到非 root 用户
+USER appuser
+
+# 健康检查
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD wget -q --spider http://localhost:8091/actuator/health || exit 1
+
+EXPOSE 8091
+
+# JVM 优化参数
+ENV JAVA_OPTS="-XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0 -XX:+UseG1GC -XX:+ExitOnOutOfMemoryError"
+
+ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -cp .:./lib:./classes:./META-INF org.springframework.boot.loader.launch.JarLauncher"]

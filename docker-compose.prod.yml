@@ -1,0 +1,67 @@
+# ============================================
+# 生产环境 Docker Compose 配置
+# 适用于阿里云 ECS / 容器服务
+# ============================================
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.optimized
+      args:
+        - BUILD_DATE=${BUILD_DATE:-now}
+    container_name: my-rest-api
+    ports:
+      - "127.0.0.1:8091:8091"  # 只绑定本地，仅通过 Nginx 对外访问
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=${DB_PORT:-3306}
+      - DB_NAME=${DB_NAME:-trading_plan}
+      - DB_USERNAME=${DB_USERNAME}
+      - DB_PASSWORD=${DB_PASSWORD}
+      - TUSHARE_TOKEN=${TUSHARE_TOKEN}
+      - TZ=Asia/Shanghai
+      - JAVA_OPTS=-XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0
+    restart: always
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8091/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '1'
+        reservations:
+          memory: 256M
+          cpus: '0.5'
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "5"
+    networks:
+      - app-network
+
+  # Nginx 反向代理 (可选)
+  nginx:
+    image: nginx:alpine
+    container_name: my-rest-api-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./ssl:/etc/nginx/ssl:ro  # SSL 证书目录
+    depends_on:
+      - app
+    restart: always
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge
