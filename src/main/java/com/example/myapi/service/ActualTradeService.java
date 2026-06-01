@@ -32,6 +32,18 @@ public class ActualTradeService {
                 .price(request.getPrice())
                 .quantity(request.getQuantity())
                 .tradeDate(request.getTradeDate())
+                .turnoverAmount(request.getTurnoverAmount())
+                .settlementAmount(request.getSettlementAmount())
+                .stampTax(defaultZero(request.getStampTax()))
+                .transferFee(defaultZero(request.getTransferFee()))
+                .commission(defaultZero(request.getCommission()))
+                .otherFee(defaultZero(request.getOtherFee()))
+                .totalFee(resolveTotalFee(request.getTotalFee(), request.getStampTax(),
+                        request.getTransferFee(), request.getCommission(), request.getOtherFee()))
+                .settlementAccountNumber(request.getSettlementAccountNumber())
+                .settlementTradeType(request.getSettlementTradeType())
+                .settlementUniqueKey(request.getSettlementUniqueKey())
+                .settlementRecordId(request.getSettlementRecordId())
                 .build();
 
         ActualTrade saved = tradeRepository.save(trade);
@@ -81,6 +93,17 @@ public class ActualTradeService {
         if (request.getPrice() != null) trade.setPrice(request.getPrice());
         if (request.getQuantity() != null) trade.setQuantity(request.getQuantity());
         if (request.getTradeDate() != null) trade.setTradeDate(request.getTradeDate());
+        if (request.getTurnoverAmount() != null) trade.setTurnoverAmount(request.getTurnoverAmount());
+        if (request.getSettlementAmount() != null) trade.setSettlementAmount(request.getSettlementAmount());
+        if (request.getStampTax() != null) trade.setStampTax(request.getStampTax());
+        if (request.getTransferFee() != null) trade.setTransferFee(request.getTransferFee());
+        if (request.getCommission() != null) trade.setCommission(request.getCommission());
+        if (request.getOtherFee() != null) trade.setOtherFee(request.getOtherFee());
+        if (request.getTotalFee() != null) trade.setTotalFee(request.getTotalFee());
+        if (request.getSettlementAccountNumber() != null) trade.setSettlementAccountNumber(request.getSettlementAccountNumber());
+        if (request.getSettlementTradeType() != null) trade.setSettlementTradeType(request.getSettlementTradeType());
+        if (request.getSettlementUniqueKey() != null) trade.setSettlementUniqueKey(request.getSettlementUniqueKey());
+        if (request.getSettlementRecordId() != null) trade.setSettlementRecordId(request.getSettlementRecordId());
 
         ActualTrade saved = tradeRepository.save(trade);
 
@@ -127,7 +150,7 @@ public class ActualTradeService {
             if (remainingQty.compareTo(BigDecimal.ZERO) <= 0) break;
 
             BigDecimal matchQty = remainingQty.min(buy.getQuantity());
-            totalCost = totalCost.add(buy.getPrice().multiply(matchQty));
+            totalCost = totalCost.add(getBuyCostForQuantity(buy, matchQty));
             remainingQty = remainingQty.subtract(matchQty);
             matchedBuyCount++;
 
@@ -137,14 +160,11 @@ public class ActualTradeService {
         }
 
         if (matchedBuyCount > 0) {
-            BigDecimal avgCost = totalCost.divide(sellTrade.getQuantity(), 4, RoundingMode.HALF_UP);
-            BigDecimal profitLoss = sellTrade.getPrice()
-                    .subtract(avgCost)
-                    .multiply(sellTrade.getQuantity())
+            BigDecimal sellProceeds = getSellProceeds(sellTrade);
+            BigDecimal profitLoss = sellProceeds.subtract(totalCost)
                     .setScale(2, RoundingMode.HALF_UP);
-            BigDecimal profitLossPercent = sellTrade.getPrice()
-                    .subtract(avgCost)
-                    .divide(avgCost, 4, RoundingMode.HALF_UP)
+            BigDecimal profitLossPercent = profitLoss
+                    .divide(totalCost, 6, RoundingMode.HALF_UP)
                     .multiply(BigDecimal.valueOf(100))
                     .setScale(4, RoundingMode.HALF_UP);
 
@@ -164,6 +184,39 @@ public class ActualTradeService {
         matchAndCalculateProfitLoss(tradeRepository.save(sellTrade));
     }
 
+    private BigDecimal getBuyCostForQuantity(ActualTrade buy, BigDecimal matchQty) {
+        BigDecimal fullCost = buy.getSettlementAmount() != null
+                ? buy.getSettlementAmount().abs()
+                : buy.getPrice().multiply(buy.getQuantity()).add(defaultZero(buy.getTotalFee()));
+        return fullCost
+                .multiply(matchQty)
+                .divide(buy.getQuantity(), 4, RoundingMode.HALF_UP);
+    }
+
+    private BigDecimal getSellProceeds(ActualTrade sellTrade) {
+        if (sellTrade.getSettlementAmount() != null) {
+            return sellTrade.getSettlementAmount().abs();
+        }
+        return sellTrade.getPrice()
+                .multiply(sellTrade.getQuantity())
+                .subtract(defaultZero(sellTrade.getTotalFee()));
+    }
+
+    private BigDecimal resolveTotalFee(BigDecimal totalFee, BigDecimal stampTax, BigDecimal transferFee,
+                                       BigDecimal commission, BigDecimal otherFee) {
+        if (totalFee != null) {
+            return totalFee;
+        }
+        return defaultZero(stampTax)
+                .add(defaultZero(transferFee))
+                .add(defaultZero(commission))
+                .add(defaultZero(otherFee));
+    }
+
+    private BigDecimal defaultZero(BigDecimal value) {
+        return value == null ? BigDecimal.ZERO : value;
+    }
+
     private ActualTradeDTO.Response toResponse(ActualTrade trade) {
         return ActualTradeDTO.Response.builder()
                 .id(trade.getId())
@@ -173,6 +226,17 @@ public class ActualTradeService {
                 .price(trade.getPrice())
                 .quantity(trade.getQuantity())
                 .tradeDate(trade.getTradeDate())
+                .turnoverAmount(trade.getTurnoverAmount())
+                .settlementAmount(trade.getSettlementAmount())
+                .stampTax(trade.getStampTax())
+                .transferFee(trade.getTransferFee())
+                .commission(trade.getCommission())
+                .otherFee(trade.getOtherFee())
+                .totalFee(trade.getTotalFee())
+                .settlementAccountNumber(trade.getSettlementAccountNumber())
+                .settlementTradeType(trade.getSettlementTradeType())
+                .settlementUniqueKey(trade.getSettlementUniqueKey())
+                .settlementRecordId(trade.getSettlementRecordId())
                 .profitLossAmount(trade.getProfitLoss())
                 .profitLossPercent(trade.getProfitLossPercent())
                 .matched(trade.getIsMatched())

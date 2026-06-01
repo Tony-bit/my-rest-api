@@ -2,12 +2,16 @@ package com.example.myapi.controller;
 
 import com.example.myapi.dto.ActualTradeDTO;
 import com.example.myapi.dto.ApiResponse;
+import com.example.myapi.dto.SettlementImportDTO;
 import com.example.myapi.entity.TradeDirection;
 import com.example.myapi.service.ActualTradeService;
+import com.example.myapi.service.SettlementImportService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -18,6 +22,7 @@ import java.util.List;
 public class ActualTradeController {
 
     private final ActualTradeService tradeService;
+    private final SettlementImportService settlementImportService;
 
     @PostMapping
     public ApiResponse<ActualTradeDTO.Response> create(
@@ -39,6 +44,12 @@ public class ActualTradeController {
         return ApiResponse.ok(tradeService.list(stockCode, direction, startDate, endDate));
     }
 
+    @PostMapping(value = "/import-settlement", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ApiResponse<SettlementImportDTO.ImportResponse> importSettlement(
+            @RequestParam("file") MultipartFile file) {
+        return ApiResponse.ok(settlementImportService.importDongguanSettlement(file), "Settlement import completed");
+    }
+
     @PutMapping("/{id}")
     public ApiResponse<ActualTradeDTO.Response> update(
             @PathVariable Long id,
@@ -49,6 +60,6 @@ public class ActualTradeController {
     @DeleteMapping("/{id}")
     public ApiResponse<Void> delete(@PathVariable Long id) {
         tradeService.delete(id);
-        return ApiResponse.ok(null, "删除成功");
+        return ApiResponse.ok(null, "Delete successful");
     }
 }

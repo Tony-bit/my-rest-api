@@ -181,6 +181,7 @@ public class TestFixtures {
         private BigDecimal price = new BigDecimal("10.00");
         private BigDecimal quantity = new BigDecimal("100");
         private LocalDate tradeDate = LocalDate.of(2026, 5, 20);
+        private BigDecimal settlementAmount;
         private BigDecimal profitLoss;
         private BigDecimal profitLossPercent;
         private Boolean isMatched = false;
@@ -193,6 +194,7 @@ public class TestFixtures {
         public TradeBuilder price(BigDecimal price) { this.price = price; return this; }
         public TradeBuilder quantity(BigDecimal quantity) { this.quantity = quantity; return this; }
         public TradeBuilder tradeDate(LocalDate tradeDate) { this.tradeDate = tradeDate; return this; }
+        public TradeBuilder settlementAmount(BigDecimal settlementAmount) { this.settlementAmount = settlementAmount; return this; }
         public TradeBuilder profitLoss(BigDecimal profitLoss) { this.profitLoss = profitLoss; return this; }
         public TradeBuilder profitLossPercent(BigDecimal profitLossPercent) { this.profitLossPercent = profitLossPercent; return this; }
         public TradeBuilder isMatched(Boolean isMatched) { this.isMatched = isMatched; return this; }
@@ -206,6 +208,7 @@ public class TestFixtures {
                     .price(price)
                     .quantity(quantity)
                     .tradeDate(tradeDate)
+                    .settlementAmount(settlementAmount)
                     .profitLoss(profitLoss)
                     .profitLossPercent(profitLossPercent)
                     .isMatched(isMatched)

@@ -64,24 +64,28 @@ public class ManualTriggerService {
             return new TriggerDetail(plan.getId(), plan.getStockName(), "already_executed");
         }
 
-        LocalDate triggerDate = (targetDate != null) ? targetDate : plan.getTriggerDate();
-        if (triggerDate == null) {
-            triggerDate = LocalDate.now();
+        // 使用 validUntil 那天的 K 线数据来判断条件（历史重现场景）
+        LocalDate signalDate = plan.getValidUntil();
+        if (signalDate == null) {
+            signalDate = plan.getTriggerDate();
+        }
+        if (signalDate == null) {
+            signalDate = LocalDate.now();
         }
 
         Optional<KLineData> kLineOpt = tushareService.getDailyKLine(
-                plan.getStockCode(), triggerDate, false);
-        // 如果没查到数据且是当天或昨天，兜底查前一天
+                plan.getStockCode(), signalDate, false);
+        // 如果没查到数据，兜底查前一天
         if (allowYesterdayFallback && kLineOpt.isEmpty()) {
-            LocalDate yesterday = triggerDate.minusDays(1);
-            log.info("No K-line data for plan id={} on date={}, falling back to yesterday={}",
-                    plan.getId(), triggerDate, yesterday);
-            triggerDate = yesterday;
-            kLineOpt = tushareService.getDailyKLine(plan.getStockCode(), triggerDate, false);
+            LocalDate previousDay = signalDate.minusDays(1);
+            log.info("No K-line data for plan id={} on date={}, falling back to previousDay={}",
+                    plan.getId(), signalDate, previousDay);
+            signalDate = previousDay;
+            kLineOpt = tushareService.getDailyKLine(plan.getStockCode(), signalDate, false);
         }
 
         if (kLineOpt.isEmpty()) {
-            log.info("No K-line data for plan id={} on date={}", plan.getId(), triggerDate);
+            log.info("No K-line data for plan id={} on date={}", plan.getId(), signalDate);
             return new TriggerDetail(plan.getId(), plan.getStockName(), "data_unavailable");
         }
 
@@ -95,7 +99,7 @@ public class ManualTriggerService {
         PlanCondition cond = plan.getConditions().get(0);
         BigDecimal maValue = null;
         if (cond.getConditionType() == com.example.myapi.entity.ConditionType.MA) {
-            maValue = tushareService.calculateMA(plan.getStockCode(), cond.getMaPeriod(), triggerDate);
+            maValue = tushareService.calculateMA(plan.getStockCode(), cond.getMaPeriod(), signalDate);
         }
 
         boolean conditionMet = tushareService.evaluateCondition(cond, plan.getPlanType(), kLine, maValue);
@@ -105,10 +109,7 @@ public class ManualTriggerService {
             return new TriggerDetail(plan.getId(), plan.getStockName(), "condition_not_met");
         }
 
-        BigDecimal triggerPrice = kLine.close;
-        if (cond.getConditionType() == com.example.myapi.entity.ConditionType.MA && maValue != null) {
-            triggerPrice = maValue;
-        }
+        BigDecimal triggerPrice = determineTriggerPrice(cond, kLine, maValue);
 
         PlanExecution execution = executionService.recordExecution(
                 plan, triggerPrice, kLine.close, maValue, null);
@@ -121,7 +122,7 @@ public class ManualTriggerService {
         }
 
         // 触发成功后立即生成快照，确保仪表盘可见最新状态
-        generatePlanSnapshot(plan, triggerDate, kLine);
+        generatePlanSnapshot(plan, signalDate, kLine);
 
         log.info("Plan id={} triggered successfully", plan.getId());
         return new TriggerDetail(plan.getId(), plan.getStockName(), "triggered");
@@ -203,5 +204,15 @@ public class ManualTriggerService {
                 .orElseThrow(() -> new BusinessException("预案不存在: " + planId, 404));
 
         return processPlan(plan, targetDate, true);
+    }
+
+    private BigDecimal determineTriggerPrice(PlanCondition cond, KLineData kLine, BigDecimal maValue) {
+        if (cond.getConditionType() == com.example.myapi.entity.ConditionType.PRICE) {
+            return cond.getTargetPrice();
+        }
+        if (cond.getConditionType() == com.example.myapi.entity.ConditionType.MA) {
+            return maValue != null ? maValue : kLine.close;
+        }
+        return kLine.close;
     }
 }

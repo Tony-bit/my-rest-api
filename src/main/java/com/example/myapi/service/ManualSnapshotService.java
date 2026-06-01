@@ -65,9 +65,9 @@ public class ManualSnapshotService {
             BigDecimal planReturnPct = BigDecimal.ZERO;
 
             if (plan.getStatus() == PlanStatus.HOLDING) {
-                List<PlanExecution> buyExecutions = executionRepository.findByPlanId(plan.getId()).stream()
-                        .filter(e -> e.getPlan().getPlanType() == PlanType.BUY)
-                        .toList();
+            List<PlanExecution> buyExecutions = executionRepository.findByPlanIdWithPlan(plan.getId()).stream()
+                    .filter(e -> e.getPlan().getPlanType() == PlanType.BUY)
+                    .toList();
                 if (!buyExecutions.isEmpty()) {
                     BigDecimal totalCost = buyExecutions.stream()
                             .map(PlanExecution::getTriggerPrice)

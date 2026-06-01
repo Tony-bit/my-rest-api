@@ -15,6 +15,7 @@ import org.mockito.quality.Strictness;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -29,12 +30,23 @@ class HoldingsServiceTest {
     @Mock private PlanExecutionRepository executionRepository;
     @Mock private ActualTradeRepository tradeRepository;
     @Mock private TushareService tushareService;
+    @Mock private SystemConfigService systemConfigService;
 
     private HoldingsService service;
 
     @BeforeEach
     void setUp() {
-        service = new HoldingsService(planRepository, executionRepository, tradeRepository, tushareService);
+        service = new HoldingsService(planRepository, executionRepository, tradeRepository, tushareService, systemConfigService);
+
+        SystemConfig config = mock(SystemConfig.class);
+        PlanAccount planAccount = mock(PlanAccount.class);
+        ActualAccount actualAccount = mock(ActualAccount.class);
+        when(systemConfigService.getSystemConfig()).thenReturn(config);
+        when(config.getBaselineCapital()).thenReturn(new BigDecimal("500000"));
+        when(systemConfigService.getPlanAccount()).thenReturn(planAccount);
+        when(planAccount.getCashBalance()).thenReturn(new BigDecimal("500000"));
+        when(systemConfigService.getActualAccount()).thenReturn(actualAccount);
+        when(actualAccount.getCashBalance()).thenReturn(new BigDecimal("500000"));
     }
 
     @Test
@@ -64,7 +76,7 @@ class HoldingsServiceTest {
                 new BigDecimal("10.50"), new BigDecimal("11.00"), 1_000_000);
 
         when(planRepository.findByStatus(PlanStatus.HOLDING)).thenReturn(List.of(plan));
-        when(executionRepository.findByPlanId(plan.getId())).thenReturn(List.of(buy));
+        when(executionRepository.findByPlanIdWithPlan(plan.getId())).thenReturn(List.of(buy));
         when(tushareService.getDailyKLine(eq("000001"), any(LocalDate.class), eq(true)))
                 .thenReturn(Optional.of(kd));
 
@@ -91,7 +103,7 @@ class HoldingsServiceTest {
                 new BigDecimal("8.50"), new BigDecimal("9.00"), 1_000_000);
 
         when(planRepository.findByStatus(PlanStatus.HOLDING)).thenReturn(List.of(plan));
-        when(executionRepository.findByPlanId(plan.getId())).thenReturn(List.of(buy));
+        when(executionRepository.findByPlanIdWithPlan(plan.getId())).thenReturn(List.of(buy));
         when(tushareService.getDailyKLine(eq("000001"), any(LocalDate.class), eq(true)))
                 .thenReturn(Optional.of(kd));
 
@@ -118,13 +130,14 @@ class HoldingsServiceTest {
                 new BigDecimal("10.50"), new BigDecimal("11.00"), 1_000_000);
 
         when(planRepository.findByStatus(PlanStatus.HOLDING)).thenReturn(List.of(plan));
-        when(executionRepository.findByPlanId(plan.getId())).thenReturn(List.of(buy));
+        when(executionRepository.findByPlanIdWithPlan(plan.getId())).thenReturn(List.of(buy));
         when(tushareService.getDailyKLine(eq("000001"), any(LocalDate.class), eq(true)))
                 .thenReturn(Optional.of(kd));
 
         ViewDTO.HoldingsResponse resp = service.getHoldings(false);
 
-        assertEquals(20, resp.getPlanHoldings().get(0).getHoldDays());
+        assertEquals((int) ChronoUnit.DAYS.between(LocalDate.of(2026, 5, 2), LocalDate.now()),
+                resp.getPlanHoldings().get(0).getHoldDays());
     }
 
     @Test
@@ -144,7 +157,7 @@ class HoldingsServiceTest {
                 new BigDecimal("10.50"), new BigDecimal("11.00"), 1_000_000);
 
         when(planRepository.findByStatus(PlanStatus.HOLDING)).thenReturn(List.of(plan));
-        when(executionRepository.findByPlanId(plan.getId())).thenReturn(List.of(buy));
+        when(executionRepository.findByPlanIdWithPlan(plan.getId())).thenReturn(List.of(buy));
         when(tushareService.getDailyKLine(eq("000001"), any(LocalDate.class), eq(true)))
                 .thenReturn(Optional.of(kd));
 
@@ -238,7 +251,7 @@ class HoldingsServiceTest {
                 .build();
 
         when(planRepository.findByStatus(PlanStatus.HOLDING)).thenReturn(List.of(plan));
-        when(executionRepository.findByPlanId(plan.getId())).thenReturn(List.of(buy));
+        when(executionRepository.findByPlanIdWithPlan(plan.getId())).thenReturn(List.of(buy));
         when(tushareService.getDailyKLine(anyString(), any(), anyBoolean())).thenReturn(Optional.empty());
 
         ViewDTO.HoldingsResponse resp = service.getHoldings(false);
@@ -254,7 +267,7 @@ class HoldingsServiceTest {
                 .build();
 
         when(planRepository.findByStatus(PlanStatus.HOLDING)).thenReturn(List.of(plan));
-        when(executionRepository.findByPlanId(plan.getId())).thenReturn(List.of());
+        when(executionRepository.findByPlanIdWithPlan(plan.getId())).thenReturn(List.of());
 
         ViewDTO.HoldingsResponse resp = service.getHoldings(false);
 

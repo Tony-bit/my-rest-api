@@ -47,4 +47,12 @@ public class SystemConfigDTO {
         private BigDecimal cashBalance;
         private java.time.LocalDateTime updatedAt;
     }
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
+    public static class UpdateCashBalanceRequest {
+        private BigDecimal cashBalance;
+    }
 }

@@ -22,4 +22,6 @@ public interface ActualTradeRepository extends JpaRepository<ActualTrade, Long> 
 
     @Query("SELECT a FROM ActualTrade a WHERE a.stockCode = :stockCode AND a.direction = 'SELL' ORDER BY a.tradeDate ASC")
     List<ActualTrade> findSells(@Param("stockCode") String stockCode);
+
+    boolean existsBySettlementUniqueKey(String settlementUniqueKey);
 }

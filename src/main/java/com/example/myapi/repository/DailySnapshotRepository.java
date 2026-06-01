@@ -25,4 +25,12 @@ public interface DailySnapshotRepository extends JpaRepository<DailySnapshot, Lo
     void deleteByPlanIdAndSnapshotDate(Long planId, LocalDate snapshotDate);
 
     void deleteByActualTradeIdAndSnapshotDate(Long actualTradeId, LocalDate snapshotDate);
+
+    @Modifying
+    @Query("DELETE FROM DailySnapshot d WHERE d.actualTradeId IS NOT NULL")
+    int deleteAllActualTradeSnapshots();
+
+    @Modifying
+    @Query("DELETE FROM DailySnapshot d WHERE d.actualTradeId = :actualTradeId")
+    int deleteByActualTradeId(@Param("actualTradeId") Long actualTradeId);
 }

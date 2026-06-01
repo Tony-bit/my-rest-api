@@ -25,29 +25,45 @@ public class HoldingsService {
     private final PlanExecutionRepository executionRepository;
     private final ActualTradeRepository tradeRepository;
     private final TushareService tushareService;
+    private final SystemConfigService systemConfigService;
 
     private static final BigDecimal DEFAULT_BASELINE = new BigDecimal("500000");
     private static final BigDecimal DEFAULT_CASH = new BigDecimal("500000");
 
     @Transactional(readOnly = true)
     public ViewDTO.HoldingsResponse getHoldings(boolean refresh) {
+        log.info("getHoldings called, refresh={}", refresh);
         LocalDate today = LocalDate.now();
         List<Plan> holdingPlans = planRepository.findByStatus(PlanStatus.HOLDING);
+        log.info("Found {} holding plans", holdingPlans.size());
 
-        BigDecimal baselineCapital = DEFAULT_BASELINE;
-        BigDecimal planCashBalance = DEFAULT_CASH;
-        BigDecimal actualCashBalance = DEFAULT_CASH;
+        BigDecimal baselineCapital = systemConfigService.getSystemConfig().getBaselineCapital();
+        BigDecimal planCashBalance = systemConfigService.getPlanAccount().getCashBalance();
+        BigDecimal actualCashBalance = systemConfigService.getActualAccount().getCashBalance();
+        log.info("Account balances - baseline={}, planCash={}, actualCash={}", baselineCapital, planCashBalance, actualCashBalance);
 
         List<ViewDTO.PlanHoldingDTO> planHoldings = new ArrayList<>();
         BigDecimal totalPlanPL = BigDecimal.ZERO;
         BigDecimal totalPlanMarketValue = BigDecimal.ZERO;
 
         for (Plan plan : holdingPlans) {
-            Optional<KLineData> kDataOpt = tushareService.getDailyKLine(plan.getStockCode(), today, true);
+            LocalDate queryDate = today;
+            Optional<KLineData> kDataOpt = tushareService.getDailyKLine(plan.getStockCode(), queryDate, true);
+            if (kDataOpt.isEmpty()) {
+                // Fallback to previous trading days
+                for (int i = 1; i <= 7; i++) {
+                    LocalDate prevDate = today.minusDays(i);
+                    kDataOpt = tushareService.getDailyKLine(plan.getStockCode(), prevDate, true);
+                    if (kDataOpt.isPresent()) {
+                        queryDate = prevDate;
+                        break;
+                    }
+                }
+            }
             if (kDataOpt.isEmpty()) continue;
             KLineData kData = kDataOpt.get();
 
-            List<PlanExecution> buys = executionRepository.findByPlanId(plan.getId()).stream()
+            List<PlanExecution> buys = executionRepository.findByPlanIdWithPlan(plan.getId()).stream()
                     .filter(e -> e.getPlan().getPlanType() == PlanType.BUY)
                     .toList();
             if (buys.isEmpty()) continue;
@@ -103,7 +119,18 @@ public class HoldingsService {
             String stockCode = entry.getKey();
             List<ActualTrade> buys = entry.getValue();
 
-            Optional<KLineData> kDataOpt = tushareService.getDailyKLine(stockCode, today, true);
+            LocalDate queryDate = today;
+            Optional<KLineData> kDataOpt = tushareService.getDailyKLine(stockCode, queryDate, true);
+            if (kDataOpt.isEmpty()) {
+                for (int i = 1; i <= 7; i++) {
+                    LocalDate prevDate = today.minusDays(i);
+                    kDataOpt = tushareService.getDailyKLine(stockCode, prevDate, true);
+                    if (kDataOpt.isPresent()) {
+                        queryDate = prevDate;
+                        break;
+                    }
+                }
+            }
             if (kDataOpt.isEmpty()) continue;
             KLineData kData = kDataOpt.get();
 

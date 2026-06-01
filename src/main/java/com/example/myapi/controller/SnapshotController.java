@@ -4,8 +4,10 @@ import com.example.myapi.dto.ApiResponse;
 import com.example.myapi.dto.SnapshotDTO;
 import com.example.myapi.entity.DailySnapshot;
 import com.example.myapi.repository.DailySnapshotRepository;
+import com.example.myapi.service.ManualSnapshotService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
@@ -17,6 +19,7 @@ import java.util.List;
 public class SnapshotController {
 
     private final DailySnapshotRepository snapshotRepository;
+    private final ManualSnapshotService manualSnapshotService;
 
     @GetMapping
     public ApiResponse<List<SnapshotDTO.Response>> list(
@@ -66,5 +69,19 @@ public class SnapshotController {
                 .actualReturnPct(s.getActualReturnPercent())
                 .createdAt(s.getCreatedAt())
                 .build();
+    }
+
+    @PostMapping("/generate")
+    public ApiResponse<ManualSnapshotService.SnapshotResult> generate(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
+        ManualSnapshotService.SnapshotResult result = manualSnapshotService.generateSnapshots(date);
+        return ApiResponse.ok(result);
+    }
+
+    @DeleteMapping("/actual-trades")
+    @Transactional
+    public ApiResponse<String> deleteActualTradeSnapshots() {
+        int deleted = snapshotRepository.deleteAllActualTradeSnapshots();
+        return ApiResponse.ok(String.format("已删除 %d 条实盘快照记录", deleted));
     }
 }

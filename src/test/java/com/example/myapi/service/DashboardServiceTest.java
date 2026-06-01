@@ -9,6 +9,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -19,6 +21,7 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
+@MockitoSettings(strictness = Strictness.LENIENT)
 class DashboardServiceTest {
 
     @Mock private HoldingsService holdingsService;
@@ -53,7 +56,7 @@ class DashboardServiceTest {
 
         when(holdingsService.getHoldings(false)).thenReturn(holdings);
         when(snapshotRepository.findAll()).thenReturn(List.of());
-        when(planExecutionRepository.findAll()).thenReturn(List.of());
+        when(planExecutionRepository.findAllWithPlan()).thenReturn(List.of());
         when(actualTradeRepository.findAll()).thenReturn(List.of());
         when(planRepository.findAll()).thenReturn(List.of());
 
@@ -84,7 +87,7 @@ class DashboardServiceTest {
 
         when(holdingsService.getHoldings(false)).thenReturn(holdings);
         when(snapshotRepository.findAll()).thenReturn(List.of());
-        when(planExecutionRepository.findAll()).thenReturn(List.of());
+        when(planExecutionRepository.findAllWithPlan()).thenReturn(List.of());
         when(actualTradeRepository.findAll()).thenReturn(List.of());
         when(planRepository.findAll()).thenReturn(List.of());
 
@@ -111,7 +114,7 @@ class DashboardServiceTest {
 
         when(holdingsService.getHoldings(false)).thenReturn(holdings);
         when(snapshotRepository.findAll()).thenReturn(List.of());
-        when(planExecutionRepository.findAll()).thenReturn(List.of());
+        when(planExecutionRepository.findAllWithPlan()).thenReturn(List.of());
         when(actualTradeRepository.findAll()).thenReturn(List.of());
         when(planRepository.findAll()).thenReturn(List.of(
                 TestFixtures.planBuilder().id(1L).status(PlanStatus.PENDING).build(),
@@ -151,7 +154,7 @@ class DashboardServiceTest {
 
         when(holdingsService.getHoldings(false)).thenReturn(holdings);
         when(snapshotRepository.findAll()).thenReturn(List.of());
-        when(planExecutionRepository.findAll()).thenReturn(List.of(exec));
+        when(planExecutionRepository.findAllWithPlan()).thenReturn(List.of(exec));
         when(actualTradeRepository.findAll()).thenReturn(List.of(trade));
         when(planRepository.findAll()).thenReturn(List.of());
 
@@ -181,7 +184,7 @@ class DashboardServiceTest {
 
         when(holdingsService.getHoldings(false)).thenReturn(holdings);
         when(snapshotRepository.findAll()).thenReturn(List.of());
-        when(planExecutionRepository.findAll()).thenReturn(List.of());
+        when(planExecutionRepository.findAllWithPlan()).thenReturn(List.of());
         when(actualTradeRepository.findAll()).thenReturn(List.of());
         when(planRepository.findAll()).thenReturn(List.of());
 

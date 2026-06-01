@@ -72,6 +72,16 @@ public class MarketCloseTask {
         return false;
     }
 
+    BigDecimal determineTriggerPrice(PlanCondition cond, KLineData kData, BigDecimal maValue) {
+        if (cond.getConditionType() == ConditionType.PRICE) {
+            return cond.getTargetPrice();
+        }
+        if (cond.getConditionType() == ConditionType.MA) {
+            return maValue != null ? maValue : kData.close;
+        }
+        return kData.close;
+    }
+
     void evaluateTriggerConditions(LocalDate today) {
         evaluateBuyPlans(today);
         evaluateSellPlans(today);
@@ -103,10 +113,10 @@ public class MarketCloseTask {
             }
 
             if (tushareService.evaluateCondition(cond, PlanType.BUY, kData, maValue)) {
-                BigDecimal triggerPrice = (maValue != null) ? maValue : kData.close;
+                BigDecimal triggerPrice = determineTriggerPrice(cond, kData, maValue);
                 executionService.recordExecution(plan, triggerPrice, kData.close, maValue, null);
                 executionService.transitionState(plan, PlanStatus.HOLDING);
-                log.info("BUY Plan id={} triggered at price={}", plan.getId(), triggerPrice);
+                log.info("BUY Plan id={} triggered at price={}, condition type={}", plan.getId(), triggerPrice, cond.getConditionType());
             }
         }
     }
@@ -143,7 +153,7 @@ public class MarketCloseTask {
             }
 
             if (tushareService.evaluateCondition(cond, PlanType.SELL, kData, maValue)) {
-                BigDecimal triggerPrice = (maValue != null) ? maValue : kData.close;
+                BigDecimal triggerPrice = determineTriggerPrice(cond, kData, maValue);
                 PlanExecution sellExecution = executionService.recordExecution(sellPlan, triggerPrice, kData.close, maValue, null);
                 executionService.transitionState(sellPlan, PlanStatus.CLOSED);
                 executionService.closeBuyPlan(sellPlan);

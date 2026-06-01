@@ -41,6 +41,18 @@ public class SystemConfigController {
                 .build());
     }
 
+    @PutMapping("/plan-account/cash-balance")
+    public ApiResponse<SystemConfigDTO.PlanAccountDTO> updatePlanCashBalance(
+            @RequestBody SystemConfigDTO.UpdateCashBalanceRequest request) {
+        systemConfigService.updatePlanCashBalance(request.getCashBalance());
+        var account = systemConfigService.getPlanAccount();
+        return ApiResponse.ok(SystemConfigDTO.PlanAccountDTO.builder()
+                .id(account.getId())
+                .cashBalance(account.getCashBalance())
+                .updatedAt(account.getUpdatedAt())
+                .build());
+    }
+
     @GetMapping("/actual-account")
     public ApiResponse<ActualAccountDTO.Response> getActualAccount() {
         return ApiResponse.ok(actualAccountService.getResponse());

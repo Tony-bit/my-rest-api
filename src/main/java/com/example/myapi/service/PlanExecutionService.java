@@ -93,7 +93,7 @@ public class PlanExecutionService {
 
     @Transactional(readOnly = true)
     public BigDecimal calculateCurrentReturn(Plan plan, BigDecimal currentPrice) {
-        List<PlanExecution> buyExecutions = executionRepository.findByPlanId(plan.getId()).stream()
+        List<PlanExecution> buyExecutions = executionRepository.findByPlanIdWithPlan(plan.getId()).stream()
                 .filter(e -> e.getPlan().getPlanType() == PlanType.BUY && e.getTriggered())
                 .toList();
         if (buyExecutions.isEmpty()) return BigDecimal.ZERO;

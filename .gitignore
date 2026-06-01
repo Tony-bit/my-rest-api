@@ -17,3 +17,10 @@ logs/
 
 # Local worktrees
 .worktrees/
+
+# Docker / Environment
+.env
+.env.local
+.env.production
+ssl/
+nginx.conf.local

@@ -63,7 +63,10 @@ class TushareServiceTest {
                 .conditionType(ConditionType.PRICE)
                 .targetPrice(new BigDecimal("10.00"))
                 .build();
-        KLineData kd = TestFixtures.kLineBuilder().close(new BigDecimal("11.00")).build();
+        KLineData kd = TestFixtures.kLineBuilder()
+                .low(new BigDecimal("9.50"))
+                .close(new BigDecimal("11.00"))
+                .build();
 
         assertTrue(service.evaluateCondition(cond, PlanType.BUY, kd, null));
     }
@@ -74,7 +77,10 @@ class TushareServiceTest {
                 .conditionType(ConditionType.PRICE)
                 .targetPrice(new BigDecimal("12.00"))
                 .build();
-        KLineData kd = TestFixtures.kLineBuilder().close(new BigDecimal("11.00")).build();
+        KLineData kd = TestFixtures.kLineBuilder()
+                .high(new BigDecimal("11.50"))
+                .close(new BigDecimal("11.00"))
+                .build();
 
         assertFalse(service.evaluateCondition(cond, PlanType.BUY, kd, null));
     }
@@ -85,7 +91,10 @@ class TushareServiceTest {
                 .conditionType(ConditionType.PRICE)
                 .targetPrice(new BigDecimal("12.00"))
                 .build();
-        KLineData kd = TestFixtures.kLineBuilder().close(new BigDecimal("11.00")).build();
+        KLineData kd = TestFixtures.kLineBuilder()
+                .high(new BigDecimal("12.50"))
+                .close(new BigDecimal("11.00"))
+                .build();
 
         assertTrue(service.evaluateCondition(cond, PlanType.SELL, kd, null));
     }
@@ -173,7 +182,10 @@ class TushareServiceTest {
                 .conditionType(ConditionType.PRICE)
                 .targetPrice(new BigDecimal("10.00"))
                 .build();
-        KLineData kd = TestFixtures.kLineBuilder().close(new BigDecimal("10.00")).build();
+        KLineData kd = TestFixtures.kLineBuilder()
+                .low(new BigDecimal("10.00"))
+                .close(new BigDecimal("10.00"))
+                .build();
 
         assertTrue(service.evaluateCondition(cond, PlanType.BUY, kd, null));
     }

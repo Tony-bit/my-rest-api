@@ -33,14 +33,47 @@ public class ActualTrade {
     @Column(nullable = false, length = 10)
     private TradeDirection direction;
 
-    @Column(nullable = false, precision = 10, scale = 2)
+    @Column(nullable = false, precision = 18, scale = 4)
     private BigDecimal price;
 
-    @Column(nullable = false, precision = 10, scale = 2)
+    @Column(nullable = false, precision = 18, scale = 4)
     private BigDecimal quantity;
 
     @Column(name = "trade_date", nullable = false)
     private LocalDate tradeDate;
+
+    @Column(name = "turnover_amount", precision = 18, scale = 4)
+    private BigDecimal turnoverAmount;
+
+    @Column(name = "settlement_amount", precision = 18, scale = 4)
+    private BigDecimal settlementAmount;
+
+    @Column(name = "stamp_tax", precision = 18, scale = 4)
+    private BigDecimal stampTax;
+
+    @Column(name = "transfer_fee", precision = 18, scale = 4)
+    private BigDecimal transferFee;
+
+    @Column(name = "commission", precision = 18, scale = 4)
+    private BigDecimal commission;
+
+    @Column(name = "other_fee", precision = 18, scale = 4)
+    private BigDecimal otherFee;
+
+    @Column(name = "total_fee", precision = 18, scale = 4)
+    private BigDecimal totalFee;
+
+    @Column(name = "settlement_account_number", length = 40)
+    private String settlementAccountNumber;
+
+    @Column(name = "settlement_trade_type", length = 40)
+    private String settlementTradeType;
+
+    @Column(name = "settlement_unique_key", length = 255, unique = true)
+    private String settlementUniqueKey;
+
+    @Column(name = "settlement_record_id")
+    private Long settlementRecordId;
 
     @Column(name = "profit_loss", precision = 12, scale = 2)
     private BigDecimal profitLoss;

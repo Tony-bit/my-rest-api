@@ -57,7 +57,7 @@ public class DashboardService {
                 .holdingPlanCount((int) holdingCount)
                 .build();
 
-        List<DashboardDTO.TrendPoint> trend = buildTrend();
+        List<DashboardDTO.TrendPoint> trend = buildTrend(holdings.getSummary());
         List<DashboardDTO.ExecutionLogItem> executionLog = buildExecutionLog();
         List<DashboardDTO.PlanHoldingItem> planHoldings = holdings.getPlanHoldings().stream()
                 .map(this::toPlanHoldingItem)
@@ -76,64 +76,140 @@ public class DashboardService {
                 .build();
     }
 
-    private List<DashboardDTO.TrendPoint> buildTrend() {
+    private List<DashboardDTO.TrendPoint> buildTrend(ViewDTO.Summary summary) {
         List<DailySnapshot> snapshots = snapshotRepository.findAll();
-        if (snapshots.isEmpty()) return List.of();
+        if (snapshots.isEmpty() && summary == null) return List.of();
 
         Map<LocalDate, List<DailySnapshot>> byDate = snapshots.stream()
                 .collect(Collectors.groupingBy(DailySnapshot::getSnapshotDate, TreeMap::new, Collectors.toList()));
 
         BigDecimal baseline = DEFAULT_BASELINE;
+        LocalDate today = LocalDate.now();
 
-        return byDate.entrySet().stream()
-                .map(entry -> {
-                    LocalDate date = entry.getKey();
-                    List<DailySnapshot> daySnapshots = entry.getValue();
+        // Track last valid values for continuity
+        BigDecimal lastPlanTotal = baseline;
+        BigDecimal lastActualTotal = baseline;
+        List<DashboardDTO.TrendPoint> trend = new ArrayList<>();
 
-                    BigDecimal planTotal = daySnapshots.stream()
-                            .filter(s -> s.getPlanReturn() != null)
-                            .map(s -> {
-                                BigDecimal cashBalance = s.getPlanCashBalance() != null
-                                        ? s.getPlanCashBalance() : DEFAULT_CASH;
-                                BigDecimal marketValue = s.getPlanMarketValue() != null
-                                        ? s.getPlanMarketValue() : BigDecimal.ZERO;
-                                return cashBalance.add(marketValue);
-                            })
-                            .reduce(BigDecimal.ZERO, BigDecimal::add);
+        for (Map.Entry<LocalDate, List<DailySnapshot>> entry : byDate.entrySet()) {
+            LocalDate date = entry.getKey();
+            List<DailySnapshot> daySnapshots = entry.getValue();
 
-                    BigDecimal actualTotal = daySnapshots.stream()
-                            .filter(s -> s.getActualReturn() != null)
-                            .map(s -> {
-                                BigDecimal cashBalance = s.getActualCashBalance() != null
-                                        ? s.getActualCashBalance() : DEFAULT_CASH;
-                                BigDecimal marketValue = s.getActualMarketValue() != null
-                                        ? s.getActualMarketValue() : BigDecimal.ZERO;
-                                return cashBalance.add(marketValue);
-                            })
-                            .reduce(BigDecimal.ZERO, BigDecimal::add);
+            // Check if we have plan snapshots for this date
+            List<DailySnapshot> planSnapshots = daySnapshots.stream()
+                    .filter(s -> s.getPlanId() != null)
+                    .toList();
+            boolean hasPlanSnapshot = !planSnapshots.isEmpty();
 
-                    BigDecimal planReturnPct = planTotal.subtract(baseline)
-                            .divide(baseline, 6, RoundingMode.HALF_UP)
-                            .multiply(new BigDecimal("100"))
-                            .setScale(4, RoundingMode.HALF_UP);
-                    BigDecimal actualReturnPct = actualTotal.subtract(baseline)
-                            .divide(baseline, 6, RoundingMode.HALF_UP)
-                            .multiply(new BigDecimal("100"))
-                            .setScale(4, RoundingMode.HALF_UP);
+            // Check if we have actual trade snapshots for this date
+            List<DailySnapshot> actualSnapshots = daySnapshots.stream()
+                    .filter(s -> s.getActualTradeId() != null)
+                    .toList();
+            boolean hasActualSnapshot = !actualSnapshots.isEmpty();
 
-                    return DashboardDTO.TrendPoint.builder()
-                            .date(date)
-                            .planTotalValue(planTotal)
-                            .actualTotalValue(actualTotal)
-                            .planReturnPercent(planReturnPct)
-                            .actualReturnPercent(actualReturnPct)
-                            .build();
-                })
-                .toList();
+            // Only include dates that have at least one type of snapshot
+            if (!hasPlanSnapshot && !hasActualSnapshot) {
+                continue;
+            }
+
+            BigDecimal planTotal = BigDecimal.ZERO;
+            BigDecimal actualTotal = BigDecimal.ZERO;
+            BigDecimal planReturnPct = BigDecimal.ZERO;
+            BigDecimal actualReturnPct = BigDecimal.ZERO;
+
+            if (hasPlanSnapshot) {
+                planTotal = planSnapshots.stream()
+                        .map(s -> {
+                            BigDecimal cashBalance = s.getPlanCashBalance() != null
+                                    ? s.getPlanCashBalance() : DEFAULT_CASH;
+                            BigDecimal marketValue = s.getPlanMarketValue() != null
+                                    ? s.getPlanMarketValue() : BigDecimal.ZERO;
+                            return cashBalance.add(marketValue);
+                        })
+                        .reduce(BigDecimal.ZERO, BigDecimal::add);
+                lastPlanTotal = planTotal;
+            } else {
+                // No plan snapshot, use last valid value
+                planTotal = lastPlanTotal;
+            }
+
+            if (hasActualSnapshot) {
+                actualTotal = actualSnapshots.stream()
+                        .map(s -> {
+                            BigDecimal cashBalance = s.getActualCashBalance() != null
+                                    ? s.getActualCashBalance() : DEFAULT_CASH;
+                            BigDecimal marketValue = s.getActualMarketValue() != null
+                                    ? s.getActualMarketValue() : BigDecimal.ZERO;
+                            return cashBalance.add(marketValue);
+                        })
+                        .reduce(BigDecimal.ZERO, BigDecimal::add);
+                lastActualTotal = actualTotal;
+            } else {
+                // No actual snapshot, use last valid value
+                actualTotal = lastActualTotal;
+            }
+
+            planReturnPct = planTotal.subtract(baseline)
+                    .divide(baseline, 6, RoundingMode.HALF_UP)
+                    .multiply(new BigDecimal("100"))
+                    .setScale(4, RoundingMode.HALF_UP);
+            actualReturnPct = actualTotal.subtract(baseline)
+                    .divide(baseline, 6, RoundingMode.HALF_UP)
+                    .multiply(new BigDecimal("100"))
+                    .setScale(4, RoundingMode.HALF_UP);
+
+            // For today's date, use live data from summary
+            if (date.equals(today) && summary != null) {
+                if (summary.getPlanTotalValue() != null) {
+                    planTotal = summary.getPlanTotalValue();
+                    planReturnPct = summary.getPlanReturnPercent() != null
+                            ? summary.getPlanReturnPercent() : planReturnPct;
+                }
+                if (summary.getActualTotalValue() != null) {
+                    actualTotal = summary.getActualTotalValue();
+                    actualReturnPct = summary.getActualReturnPercent() != null
+                            ? summary.getActualReturnPercent() : actualReturnPct;
+                }
+            }
+
+            trend.add(DashboardDTO.TrendPoint.builder()
+                    .date(date)
+                    .planTotalValue(planTotal)
+                    .actualTotalValue(actualTotal)
+                    .planReturnPercent(planReturnPct)
+                    .actualReturnPercent(actualReturnPct)
+                    .build());
+        }
+
+        // If today has no snapshot but we have live data, add today's point
+        if (!byDate.containsKey(today) && summary != null) {
+            BigDecimal planTotal = summary.getPlanTotalValue() != null
+                    ? summary.getPlanTotalValue() : lastPlanTotal;
+            BigDecimal actualTotal = summary.getActualTotalValue() != null
+                    ? summary.getActualTotalValue() : lastActualTotal;
+            BigDecimal planReturnPct = summary.getPlanReturnPercent() != null
+                    ? summary.getPlanReturnPercent()
+                    : planTotal.subtract(baseline).divide(baseline, 6, RoundingMode.HALF_UP)
+                        .multiply(new BigDecimal("100")).setScale(4, RoundingMode.HALF_UP);
+            BigDecimal actualReturnPct = summary.getActualReturnPercent() != null
+                    ? summary.getActualReturnPercent()
+                    : actualTotal.subtract(baseline).divide(baseline, 6, RoundingMode.HALF_UP)
+                        .multiply(new BigDecimal("100")).setScale(4, RoundingMode.HALF_UP);
+
+            trend.add(DashboardDTO.TrendPoint.builder()
+                    .date(today)
+                    .planTotalValue(planTotal)
+                    .actualTotalValue(actualTotal)
+                    .planReturnPercent(planReturnPct)
+                    .actualReturnPercent(actualReturnPct)
+                    .build());
+        }
+
+        return trend;
     }
 
     private List<DashboardDTO.ExecutionLogItem> buildExecutionLog() {
-        List<PlanExecution> executions = planExecutionRepository.findAll();
+        List<PlanExecution> executions = planExecutionRepository.findAllWithPlan();
         List<ActualTrade> trades = actualTradeRepository.findAll();
 
         List<DashboardDTO.ExecutionLogItem> log = new ArrayList<>();

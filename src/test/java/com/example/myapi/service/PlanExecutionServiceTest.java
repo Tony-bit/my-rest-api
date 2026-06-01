@@ -179,7 +179,7 @@ class PlanExecutionServiceTest {
                 .plan(buyPlan)
                 .triggerPrice(new BigDecimal("10.00"))
                 .build();
-        when(executionRepository.findByPlanId(buyPlan.getId())).thenReturn(List.of(buyExec));
+        when(executionRepository.findByPlanIdWithPlan(buyPlan.getId())).thenReturn(List.of(buyExec));
 
         BigDecimal result = service.calculateCurrentReturn(buyPlan, new BigDecimal("11.00"));
 
@@ -189,7 +189,7 @@ class PlanExecutionServiceTest {
     @Test
     void calculateReturn_noBuyRecords_returnsZero() {
         Plan buyPlan = TestFixtures.planBuilder().build();
-        when(executionRepository.findByPlanId(buyPlan.getId())).thenReturn(List.of());
+        when(executionRepository.findByPlanIdWithPlan(buyPlan.getId())).thenReturn(List.of());
 
         BigDecimal result = service.calculateCurrentReturn(buyPlan, new BigDecimal("11.00"));
 

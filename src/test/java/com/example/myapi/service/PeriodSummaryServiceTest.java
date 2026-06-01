@@ -64,7 +64,7 @@ class PeriodSummaryServiceTest {
     void getSummary_filtersPlansByCreatedAt() {
         Plan inRange = TestFixtures.planBuilder()
                 .id(1L)
-                .createdAt(LocalDateTime.of(2026, 5, 20, 10, 0))
+                .createdAt(LocalDateTime.now())
                 .build();
         Plan outRange = TestFixtures.planBuilder()
                 .id(2L)
@@ -110,7 +110,7 @@ class PeriodSummaryServiceTest {
                 .build();
 
         when(planRepository.findAll()).thenReturn(List.of(plan));
-        when(executionRepository.findByPlanId(plan.getId())).thenReturn(List.of(buy));
+        when(executionRepository.findByPlanIdWithPlan(plan.getId())).thenReturn(List.of(buy));
         when(tradeRepository.findByTradeDateBetween(any(), any())).thenReturn(List.of());
 
         ViewDTO.PeriodSummaryResponse resp = service.getSummary("WEEK");
@@ -135,7 +135,7 @@ class PeriodSummaryServiceTest {
                 .build();
 
         when(planRepository.findAll()).thenReturn(List.of(buyPlan));
-        when(executionRepository.findByPlanId(buyPlan.getId())).thenReturn(List.of(buy));
+        when(executionRepository.findByPlanIdWithPlan(buyPlan.getId())).thenReturn(List.of(buy));
         when(tradeRepository.findByTradeDateBetween(any(), any())).thenReturn(List.of());
 
         ViewDTO.PeriodSummaryResponse resp = service.getSummary("WEEK");

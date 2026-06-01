@@ -37,6 +37,18 @@ public class ActualTradeDTO {
 
         @NotNull(message = "交易日期不能为空")
         private LocalDate tradeDate;
+
+        private BigDecimal turnoverAmount;
+        private BigDecimal settlementAmount;
+        private BigDecimal stampTax;
+        private BigDecimal transferFee;
+        private BigDecimal commission;
+        private BigDecimal otherFee;
+        private BigDecimal totalFee;
+        private String settlementAccountNumber;
+        private String settlementTradeType;
+        private String settlementUniqueKey;
+        private Long settlementRecordId;
     }
 
     @Data
@@ -49,6 +61,17 @@ public class ActualTradeDTO {
         private BigDecimal price;
         private BigDecimal quantity;
         private LocalDate tradeDate;
+        private BigDecimal turnoverAmount;
+        private BigDecimal settlementAmount;
+        private BigDecimal stampTax;
+        private BigDecimal transferFee;
+        private BigDecimal commission;
+        private BigDecimal otherFee;
+        private BigDecimal totalFee;
+        private String settlementAccountNumber;
+        private String settlementTradeType;
+        private String settlementUniqueKey;
+        private Long settlementRecordId;
     }
 
     @Data
@@ -63,6 +86,17 @@ public class ActualTradeDTO {
         private BigDecimal price;
         private BigDecimal quantity;
         private LocalDate tradeDate;
+        private BigDecimal turnoverAmount;
+        private BigDecimal settlementAmount;
+        private BigDecimal stampTax;
+        private BigDecimal transferFee;
+        private BigDecimal commission;
+        private BigDecimal otherFee;
+        private BigDecimal totalFee;
+        private String settlementAccountNumber;
+        private String settlementTradeType;
+        private String settlementUniqueKey;
+        private Long settlementRecordId;
         private BigDecimal profitLossAmount;
         private BigDecimal profitLossPercent;
         private Boolean matched;

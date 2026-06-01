@@ -139,6 +139,44 @@ class ActualTradeServiceTest {
     }
 
     @Test
+    void fifo_feeAwareSellMatchesBuy_usesSettlementAmountsAsNetCostAndProceeds() {
+        ActualTrade buy = TestFixtures.tradeBuilder()
+                .id(1L)
+                .direction(TradeDirection.BUY)
+                .price(new BigDecimal("10.00"))
+                .quantity(new BigDecimal("100"))
+                .tradeDate(LocalDate.of(2026, 5, 19))
+                .settlementAmount(new BigDecimal("-1003.00"))
+                .isMatched(false)
+                .build();
+
+        when(tradeRepository.findUnmatchedBuys("000001")).thenReturn(new ArrayList<>(List.of(buy)));
+        when(tradeRepository.save(any(ActualTrade.class))).thenAnswer(inv -> {
+            ActualTrade t = inv.getArgument(0);
+            setField(t, "id", 2L);
+            return t;
+        });
+
+        ActualTradeDTO.CreateRequest request = ActualTradeDTO.CreateRequest.builder()
+                .stockCode("000001")
+                .direction(TradeDirection.SELL)
+                .price(new BigDecimal("12.00"))
+                .quantity(new BigDecimal("100"))
+                .tradeDate(LocalDate.of(2026, 5, 20))
+                .settlementAmount(new BigDecimal("1195.00"))
+                .stampTax(new BigDecimal("3.00"))
+                .commission(new BigDecimal("1.00"))
+                .transferFee(new BigDecimal("0.50"))
+                .otherFee(new BigDecimal("0.50"))
+                .build();
+
+        ActualTradeDTO.Response resp = service.create(request);
+
+        assertEquals(new BigDecimal("192.00"), resp.getProfitLossAmount());
+        assertEquals(new BigDecimal("19.1426"), resp.getProfitLossPercent());
+    }
+
+    @Test
     void fifo_singleSellMatchesMultipleBuys() {
         ActualTrade buy1 = TestFixtures.tradeBuilder()
                 .id(1L).direction(TradeDirection.BUY).price(new BigDecimal("10.00"))

@@ -124,12 +124,12 @@ public class PeriodSummaryService {
 
     private BigDecimal calculatePlanReturn(Plan plan, BigDecimal baselineCapital, BigDecimal planCashBalance) {
         if (plan.getStatus() == PlanStatus.PENDING) return BigDecimal.ZERO;
-        List<PlanExecution> buys = executionRepository.findByPlanId(plan.getId()).stream()
+        List<PlanExecution> buys = executionRepository.findByPlanIdWithPlan(plan.getId()).stream()
                 .filter(e -> e.getPlan().getPlanType() == PlanType.BUY)
                 .toList();
         if (buys.isEmpty()) return BigDecimal.ZERO;
 
-        List<PlanExecution> sells = executionRepository.findByPlanId(plan.getId()).stream()
+        List<PlanExecution> sells = executionRepository.findByPlanIdWithPlan(plan.getId()).stream()
                 .filter(e -> e.getPlan().getPlanType() == PlanType.SELL)
                 .toList();
 
