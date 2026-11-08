@@ -106,6 +106,32 @@ public class WeChatNotificationService {
         log.info("Sent signal notification: stock={}, type={}, code={}", stockCode, signalType, maskCode(stockCode));
     }
 
+    /** Daily trend review: reuses the configured and already working template channel. */
+    public void sendShengyiReview(java.time.LocalDate executionDate, ShengyiTrendStrategy.Review review) {
+        StockMonitorConfig config = configRepository.getConfig();
+        validateConfig(config);
+        sendTemplateMessage(getAccessToken(config), config.getWechatOpenId(), config.getWechatTemplateId(), shengyiTemplateData(executionDate, review));
+    }
+
+    static Map<String, Object> shengyiTemplateData(java.time.LocalDate executionDate, ShengyiTrendStrategy.Review review) {
+        String action = switch (review.signal()) {
+            case "BUY" -> "买入总权益1/3";
+            case "SELL" -> "卖出总权益1/3";
+            default -> "继续持仓或观望";
+        };
+        String detail = String.format(java.util.Locale.ROOT,
+                "收盘%.2f(%+.2f%%)，复权MA10 %.2f；J %.2f→%.2f；MACD柱%.4f→%.4f；量比%.2f。%s。历史研究规则，未证明未来优势；不代表已成交。",
+                review.closePrice(), review.pctChange(), review.ma10(), review.previousJ(), review.j(),
+                review.previousHistogram(), review.histogram(), review.volumeRatio(), review.action());
+        Map<String, Object> data = Map.of(
+                "first", Map.of("value", "生益科技盘前复盘：" + action, "color", "#173177"),
+                "keyword1", Map.of("value", "600183 生益科技", "color", "#173177"),
+                "keyword2", Map.of("value", action, "color", "#173177"),
+                "keyword3", Map.of("value", executionDate + "（行情" + review.signalDate() + "）", "color", "#173177"),
+                "remark", Map.of("value", detail, "color", "#888888"));
+        return data;
+    }
+
     private void validateConfig(StockMonitorConfig config) {
         if (config == null || !Boolean.TRUE.equals(config.getWechatConfigured())) {
             throw new WeChatNotConfiguredException("微信配置未完成，请检查AppID、AppSecret、模板ID和OpenID");

@@ -1,0 +1,5 @@
+# Optional override for deployments whose Spring service is named app.
+services:
+  app:
+    environment:
+      SHENGYI_REVIEW_ENABLED: ${SHENGYI_REVIEW_ENABLED:-false}

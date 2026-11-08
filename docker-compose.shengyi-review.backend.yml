@@ -1,0 +1,5 @@
+# Optional override for docker-compose.all-in-one.yml (Spring service: backend).
+services:
+  backend:
+    environment:
+      SHENGYI_REVIEW_ENABLED: ${SHENGYI_REVIEW_ENABLED:-false}
